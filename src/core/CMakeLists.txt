@@ -25,7 +25,13 @@ if(NOT TARGET xxhash)
 endif()
 
 # Core library target
-add_library(dupcleaner_core STATIC scanner.cpp duplicate_finder.cpp hasher.cpp deleter.cpp image_loader.cpp perceptual_hash.cpp)
+add_library(dupcleaner_core STATIC scanner.cpp    duplicate_finder.cpp
+    hasher.cpp
+    deleter.cpp
+    image_loader.cpp
+    perceptual_hash.cpp
+    thread_pool.cpp
+)
 target_include_directories(dupcleaner_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
