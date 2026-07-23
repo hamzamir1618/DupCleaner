@@ -18,10 +18,11 @@ if(NOT TARGET xxhash)
     add_library(xxHash::xxhash ALIAS xxhash)
 endif()
 
-# Placeholder empty library target
-add_library(dupcleaner_core INTERFACE)
-target_include_directories(dupcleaner_core INTERFACE
+# Core library target
+add_library(dupcleaner_core STATIC scanner.cpp)
+target_include_directories(dupcleaner_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(dupcleaner_core INTERFACE xxHash::xxhash)
+target_link_libraries(dupcleaner_core PUBLIC xxHash::xxhash)
