@@ -21,6 +21,9 @@ struct CliOptions {
     bool trash{true};
     bool dry_run{false};
     bool yes{false};
+
+    bool include_near_duplicates{false};
+    int similarity_threshold{10};
 };
 
 inline void setup_cli(CLI::App& app, CliOptions& opts) {
@@ -32,6 +35,8 @@ inline void setup_cli(CLI::App& app, CliOptions& opts) {
     scan_cmd->add_option("--min-size", opts.min_size, "Skip files smaller than this (bytes)");
     scan_cmd->add_flag("--json", opts.json_output, "Output report as JSON");
     scan_cmd->add_flag("--verbose", opts.verbose, "Print skipped paths and detailed stats");
+    scan_cmd->add_flag("--include-near-duplicates", opts.include_near_duplicates, "Also scan for near-duplicate images using perceptual hashing");
+    scan_cmd->add_option("--similarity-threshold", opts.similarity_threshold, "Hamming distance threshold for near-duplicates (default: 10)");
     scan_cmd->callback([&opts]() { opts.has_scan_command = true; });
 
     // --- CLEAN SUBCOMMAND ---

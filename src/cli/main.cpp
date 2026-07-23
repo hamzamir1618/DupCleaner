@@ -5,6 +5,7 @@
 #include "duplicate_finder.h"
 #include "deleter.h"
 #include "cli_app.h"
+#include "perceptual_hash.h"
 #include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
@@ -62,6 +63,11 @@ int main(int argc, char** argv) {
     auto result = scanner.scan(target, scan_opts);
     auto dup_groups = DuplicateFinder::findExactDuplicates(result.entries);
 
+    DuplicateFinder::NearDuplicateResult near_dup_result;
+    if (opts.has_scan_command && opts.include_near_duplicates) {
+        near_dup_result = DuplicateFinder::findNearDuplicateImages(result.entries, opts.similarity_threshold);
+    }
+
     if (opts.has_scan_command) {
         if (opts.json_output) {
             json j;
@@ -98,6 +104,32 @@ int main(int argc, char** argv) {
 
             j["groups"] = groups;
             j["total_wasted_bytes"] = total_wasted_space;
+
+            if (opts.include_near_duplicates) {
+                json nd_groups = json::array();
+                for (const auto& group : near_dup_result.groups) {
+                    json g;
+                    uint64_t ref_hash = group.members[0].second;
+                    json files_arr = json::array();
+                    for (const auto& member : group.members) {
+                        json f;
+                        f["path"] = member.first.path.string();
+                        f["distance_from_reference"] = PerceptualHash::hammingDistance(ref_hash, member.second);
+                        files_arr.push_back(f);
+                    }
+                    g["files"] = files_arr;
+                    nd_groups.push_back(g);
+                }
+                j["near_duplicate_groups"] = nd_groups;
+
+                if (opts.verbose) {
+                    json nd_skipped = json::array();
+                    for (const auto& sp : near_dup_result.skipped_paths) {
+                        nd_skipped.push_back(sp.string());
+                    }
+                    j["near_duplicate_skipped_paths"] = nd_skipped;
+                }
+            }
 
             std::cout << j.dump(2) << "\n";
         } else {
@@ -136,6 +168,35 @@ int main(int argc, char** argv) {
                     std::cout << "\n";
                 }
                 std::cout << "Total wasted space: " << total_wasted_space << " bytes.\n";
+            }
+
+            if (opts.include_near_duplicates) {
+                if (near_dup_result.groups.empty()) {
+                    std::cout << "\nNo near-duplicate images found.\n";
+                } else {
+                    std::cout << "\nFound " << near_dup_result.groups.size() << " near-duplicate image groups (Threshold: " << opts.similarity_threshold << "):\n\n";
+                    for (size_t i = 0; i < near_dup_result.groups.size(); ++i) {
+                        const auto& group = near_dup_result.groups[i];
+                        std::cout << "Near-Duplicate Group " << (i + 1) << ":\n";
+                        
+                        uint64_t ref_hash = group.members[0].second;
+                        
+                        for (size_t j = 0; j < group.members.size(); ++j) {
+                            int dist = PerceptualHash::hammingDistance(ref_hash, group.members[j].second);
+                            int sim = 100 - (dist * 100 / 64);
+                            std::cout << "  - " << group.members[j].first.path.string();
+                            if (j == 0) {
+                                std::cout << " (Reference Image)\n";
+                            } else {
+                                std::cout << " (Similarity: " << sim << "% | Distance: " << dist << ")\n";
+                            }
+                        }
+                        std::cout << "\n";
+                    }
+                }
+                if (opts.verbose && !near_dup_result.skipped_paths.empty()) {
+                    std::cout << "Skipped " << near_dup_result.skipped_paths.size() << " non-decodable images during perceptual hashing.\n";
+                }
             }
         }
     } else if (opts.has_clean_command) {

@@ -22,8 +22,12 @@ public:
     // Finds and returns all groups of exact duplicates using size, hashing, and byte comparison.
     static std::vector<std::vector<FileEntry>> findExactDuplicates(const std::vector<FileEntry>& entries);
 
+    struct NearDuplicateGroup {
+        std::vector<std::pair<FileEntry, uint64_t>> members;
+    };
+
     struct NearDuplicateResult {
-        std::vector<std::vector<FileEntry>> groups;
+        std::vector<NearDuplicateGroup> groups;
         std::vector<std::filesystem::path> skipped_paths;
     };
 

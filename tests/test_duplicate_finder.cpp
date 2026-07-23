@@ -276,7 +276,7 @@ TEST_F(NearDuplicateFinderTest, IdenticalImagesCluster) {
     
     auto result = DuplicateFinder::findNearDuplicateImages(entries, 5);
     ASSERT_EQ(result.groups.size(), 1);
-    EXPECT_EQ(result.groups[0].size(), 2);
+    EXPECT_EQ(result.groups[0].members.size(), 2);
     EXPECT_TRUE(result.skipped_paths.empty());
 }
 
@@ -287,7 +287,7 @@ TEST_F(NearDuplicateFinderTest, SimilarImagesCluster) {
     
     auto result = DuplicateFinder::findNearDuplicateImages(entries, 5);
     ASSERT_EQ(result.groups.size(), 1);
-    EXPECT_EQ(result.groups[0].size(), 2);
+    EXPECT_EQ(result.groups[0].members.size(), 2);
 }
 
 TEST_F(NearDuplicateFinderTest, DifferentImagesDoNotCluster) {

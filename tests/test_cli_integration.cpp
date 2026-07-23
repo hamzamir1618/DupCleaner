@@ -117,18 +117,71 @@ TEST_F(CliIntegrationTest, CleanInteractivePiping) {
     EXPECT_TRUE(fs::exists(temp_dir / ".dupcleaner_trash"));
 }
 
-TEST_F(CliIntegrationTest, CleanYesAndUndo) {
-    std::string output = run_cli("clean", "--yes --trash");
-    EXPECT_NE(output.find("Successfully moved files to trash."), std::string::npos);
+    TEST_F(CliIntegrationTest, CleanYesAndUndo) {
+        std::string output = run_cli("clean", "--yes --trash");
+        EXPECT_NE(output.find("Successfully moved files to trash."), std::string::npos);
 
-    bool dup1 = fs::exists(temp_dir / "dup1.txt");
-    bool dup2 = fs::exists(temp_dir / "dup2.txt");
-    EXPECT_TRUE(dup1 != dup2); // Only one survives
+        bool dup1 = fs::exists(temp_dir / "dup1.txt");
+        bool dup2 = fs::exists(temp_dir / "dup2.txt");
+        EXPECT_TRUE(dup1 != dup2); // Only one survives
 
-    std::string undo_output = run_cli("undo", "");
-    EXPECT_NE(undo_output.find("Successfully restored the most recent deletion batch."), std::string::npos);
+        std::string undo_output = run_cli("undo", "");
+        EXPECT_NE(undo_output.find("Successfully restored the most recent deletion batch."), std::string::npos);
 
-    // Both should be back
-    EXPECT_TRUE(fs::exists(temp_dir / "dup1.txt"));
-    EXPECT_TRUE(fs::exists(temp_dir / "dup2.txt"));
+        // Both should be back
+        EXPECT_TRUE(fs::exists(temp_dir / "dup1.txt"));
+        EXPECT_TRUE(fs::exists(temp_dir / "dup2.txt"));
+    }
+
+// --- Near-Duplicate CLI Tests ---
+#include "stb_image_write.h"
+
+class CliNearDuplicateIntegrationTest : public CliIntegrationTest {
+protected:
+    void SetUp() override {
+        CliIntegrationTest::SetUp(); // Call parent to create temp_dir and text files
+        
+        // Create near-duplicate images
+        create_png("near_dup1.jpg", 100, 100, true);
+        create_png("near_dup2.jpg", 200, 150, true); // Similar, proportional
+        create_png("different.jpg", 100, 100, false); // Checkerboard
+    }
+
+    void create_png(const std::string& name, int width, int height, bool gradient) {
+        fs::path p = temp_dir / name;
+        std::vector<unsigned char> pixels(width * height * 3);
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int idx = (y * width + x) * 3;
+                unsigned char val = gradient ? (x * 255) / width : (((x / 10) % 2 == (y / 10) % 2) ? 255 : 0);
+                pixels[idx] = val;
+                pixels[idx+1] = val;
+                pixels[idx+2] = val;
+            }
+        }
+        stbi_write_png(p.string().c_str(), width, height, 3, pixels.data(), width * 3);
+    }
+};
+
+TEST_F(CliNearDuplicateIntegrationTest, ScanHumanReadableOutput) {
+    std::string output = run_cli("scan", "--include-near-duplicates");
+    
+    // Exact duplicate tests from base should still appear
+    EXPECT_NE(output.find("Found 1 exact duplicate groups:"), std::string::npos);
+    
+    // Near duplicate assertions
+    EXPECT_NE(output.find("Found 1 near-duplicate image groups"), std::string::npos);
+    EXPECT_NE(output.find("(Reference Image)"), std::string::npos);
+    EXPECT_NE(output.find("(Similarity:"), std::string::npos);
+}
+
+TEST_F(CliNearDuplicateIntegrationTest, ScanJsonOutput) {
+    std::string output = run_cli("scan", "--include-near-duplicates --json");
+    json j;
+    ASSERT_NO_THROW({ j = json::parse(output); }) << "CLI output was not valid JSON";
+    
+    ASSERT_TRUE(j.contains("near_duplicate_groups"));
+    EXPECT_EQ(j["near_duplicate_groups"].size(), 1);
+    EXPECT_EQ(j["near_duplicate_groups"][0]["files"].size(), 2);
+    EXPECT_TRUE(j["near_duplicate_groups"][0]["files"][0].contains("distance_from_reference"));
 }
