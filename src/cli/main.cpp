@@ -5,6 +5,7 @@
 #include "duplicate_finder.h"
 #include "deleter.h"
 #include "cli_app.h"
+#include "interactive_review.h"
 #include "perceptual_hash.h"
 #include "nlohmann/json.hpp"
 
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
     auto dup_groups = DuplicateFinder::findExactDuplicates(result.entries);
 
     DuplicateFinder::NearDuplicateResult near_dup_result;
-    if (opts.has_scan_command && opts.include_near_duplicates) {
+    if ((opts.has_scan_command || opts.has_clean_command) && opts.include_near_duplicates) {
         near_dup_result = DuplicateFinder::findNearDuplicateImages(result.entries, opts.similarity_threshold);
     }
 
@@ -200,8 +201,8 @@ int main(int argc, char** argv) {
             }
         }
     } else if (opts.has_clean_command) {
-        if (dup_groups.empty()) {
-            std::cout << "No exact duplicates found to clean.\n";
+        if (dup_groups.empty() && (!opts.include_near_duplicates || near_dup_result.groups.empty())) {
+            std::cout << "No exact or near duplicates found to clean.\n";
             return 0;
         }
 
@@ -210,16 +211,65 @@ int main(int argc, char** argv) {
         else if (opts.strategy == "alpha-first") strat = KeepStrategy::KeepFirstAlphabetically;
 
         SafeDeleter deleter(target);
-        DeletionPlan plan = deleter.planDeletion(dup_groups, strat);
+        DeletionPlan plan;
+
+        if (opts.interactive) {
+            auto process_groups = [&](const std::vector<std::vector<FileEntry>>& groups, const std::string& type_name) {
+                for (size_t i = 0; i < groups.size(); ++i) {
+                    const auto& g = groups[i];
+                    std::cout << "\n--- " << type_name << " Group " << (i + 1) << " of " << groups.size() << " ---\n";
+                    
+                    std::vector<std::vector<FileEntry>> single_group = { g };
+                    DeletionPlan single_plan = deleter.planDeletion(single_group, strat);
+                    size_t suggested_idx = 0;
+                    for (size_t j = 0; j < g.size(); ++j) {
+                        if (!single_plan.keep_files.empty() && g[j].path == single_plan.keep_files[0]) {
+                            suggested_idx = j;
+                            break;
+                        }
+                    }
+
+                    auto decision = resolveGroupInteractively(g, suggested_idx, std::cin, std::cout);
+                    if (!decision.skip) {
+                        for (const auto& f : decision.keep_files) plan.keep_files.push_back(f.path);
+                        for (const auto& f : decision.delete_files) plan.delete_files.push_back(f.path);
+                    }
+                }
+            };
+
+            process_groups(dup_groups, "Exact Duplicate");
+            
+            if (opts.include_near_duplicates) {
+                std::vector<std::vector<FileEntry>> nd_raw_groups;
+                for (const auto& g : near_dup_result.groups) {
+                    std::vector<FileEntry> members;
+                    for (const auto& m : g.members) members.push_back(m.first);
+                    nd_raw_groups.push_back(members);
+                }
+                process_groups(nd_raw_groups, "Near-Duplicate");
+            }
+        } else {
+            plan = deleter.planDeletion(dup_groups, strat);
+            if (opts.include_near_duplicates) {
+                std::vector<std::vector<FileEntry>> nd_raw_groups;
+                for (const auto& g : near_dup_result.groups) {
+                    std::vector<FileEntry> members;
+                    for (const auto& m : g.members) members.push_back(m.first);
+                    nd_raw_groups.push_back(members);
+                }
+                DeletionPlan nd_plan = deleter.planDeletion(nd_raw_groups, strat);
+                plan.keep_files.insert(plan.keep_files.end(), nd_plan.keep_files.begin(), nd_plan.keep_files.end());
+                plan.delete_files.insert(plan.delete_files.end(), nd_plan.delete_files.begin(), nd_plan.delete_files.end());
+            }
+        }
 
         uintmax_t total_reclaimed = 0;
-        std::cout << "Deletion Plan:\n";
-        for (const auto& group : dup_groups) {
-            if (group.size() <= 1) continue;
-            uintmax_t file_size = group[0].size;
-            total_reclaimed += file_size * (group.size() - 1);
+        for (const auto& f : plan.delete_files) {
+            std::error_code ec;
+            total_reclaimed += fs::file_size(f, ec);
         }
         
+        std::cout << "\nDeletion Plan:\n";
         std::cout << "Files to delete: " << plan.delete_files.size() << "\n";
         std::cout << "Files to keep: " << plan.keep_files.size() << "\n";
         std::cout << "Total space to reclaim: " << total_reclaimed << " bytes\n";

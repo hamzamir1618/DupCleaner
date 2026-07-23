@@ -86,6 +86,20 @@ By default, files are moved to a `.dupcleaner_trash/` directory inside your scan
 $ dupcleaner_cli clean ./my_photos --dry-run
 ```
 
+### Interactive Review
+For fine-grained control, you can review each duplicate group interactively to manually override suggestions or skip uncertain groups:
+```bash
+$ dupcleaner_cli clean ./my_photos --interactive
+--- Exact Duplicate Group 1 of 1 ---
+Reviewing Group:
+  [1] C:\my_photos\vacation.jpg (1048576 bytes) (*Suggested*)
+  [2] C:\my_photos\backup\vacation_copy.jpg (1048576 bytes)
+Action (a=accept suggestion, s=skip group, k<N>=keep file N): k2
+
+Deletion Plan:
+...
+```
+
 > [!WARNING]  
 > If you pass the `--permanent` flag, the files will be irreversibly unlinked from the filesystem and **cannot** be recovered! 
 
