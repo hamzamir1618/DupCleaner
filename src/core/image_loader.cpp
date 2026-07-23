@@ -6,7 +6,7 @@
 namespace dupcleaner {
 
 std::optional<ImageData> ImageLoader::load(const std::filesystem::path& path) {
-    int w, h, c;
+    int w = 0, h = 0, c = 0;
     
     // Attempt to load the image.
     // If the file is not an image or fails to load, stbi_load returns null.

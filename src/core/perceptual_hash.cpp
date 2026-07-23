@@ -1,4 +1,5 @@
 #include "perceptual_hash.h"
+#include <array>
 
 namespace dupcleaner {
 
@@ -7,7 +8,7 @@ uint64_t PerceptualHash::computeDHash(const ImageData& img) {
         return 0;
     }
 
-    int gray_9x8[8][9];
+    std::array<std::array<int, 9>, 8> gray_9x8 = {};
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 9; ++x) {
