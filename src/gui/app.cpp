@@ -2,6 +2,7 @@
 #include "formatting.h"
 #include "scanner.h"
 #include "duplicate_finder.h"
+#include "perceptual_hash.h"
 #include "imgui.h"
 #include <iostream>
 
