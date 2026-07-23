@@ -14,3 +14,13 @@ To quickly sort potential duplicates before performing expensive byte-for-byte c
 
 ## Safety Model
 When executing deletion operations, `dupcleaner` defaults to moving duplicate files into a localized, hidden `.dupcleaner_trash/` directory situated within the scanned target folder. Along with the files, it generates a JSON manifest (`manifest.json`) that maps the randomized trash filenames back to their exact original absolute paths. This default "trash" behavior guarantees that users can completely reverse accidental deletions via the `undo` command. Permanent deletion (`std::filesystem::remove`) is strictly an opt-in behavior (`--permanent`) and avoids touching any user system-level trash configurations, keeping operations strictly sandboxed to the project directory being analyzed.
+
+## Perceptual Hashing (dHash)
+To identify near-duplicate images (e.g. resized, slightly cropped, or compressed variants of the same photo), `dupcleaner` implements the **dHash** (difference hash) algorithm.
+dHash was chosen for Phase 2 over algorithms like pHash (DCT-based) or aHash (average hash) because it offers an excellent tradeoff: it is highly resistant to resizing and brightness/contrast adjustments, while remaining extremely fast to compute and simple to implement from scratch. 
+1. The image is downscaled to a tiny `9x8` grid using a localized box-filter to accurately capture regional luminosity.
+2. The grid is converted to grayscale using the CCIR 601 luma formula.
+3. Each row is scanned pixel by pixel: if the left pixel is brighter than the right pixel, a bit is flipped. This yields exactly 64 bits of gradient data, encoded as a `uint64_t`.
+4. Image similarity is calculated by checking the Hamming distance (`std::popcount(a ^ b)`) between two hashes.
+
+*Note: In the future, a DCT-based pHash may be integrated for higher accuracy against extreme crops or watermarks.*
