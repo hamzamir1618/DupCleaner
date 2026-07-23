@@ -8,6 +8,8 @@
 #include "dupcleaner/file_entry.h"
 #include "duplicate_finder.h"
 #include "thumbnail_cache.h"
+#include "deleter.h"
+#include <set>
 
 namespace dupcleaner::gui {
 
@@ -37,7 +39,14 @@ private:
     DuplicateFinder::NearDuplicateResult near_duplicates;
     uintmax_t exact_wasted_space = 0;
     
+    // Deletion State
+    std::set<std::string> selected_for_deletion;
+    bool show_confirm_modal = false;
+    
     ThumbnailCache thumbnail_cache;
+    
+    // Core Deleter
+    std::unique_ptr<SafeDeleter> deleter;
 };
 
 } // namespace dupcleaner::gui

@@ -4,6 +4,7 @@
 #include "duplicate_finder.h"
 #include "perceptual_hash.h"
 #include "thumbnail_logic.h"
+#include "selection_logic.h"
 #include "imgui.h"
 #include <iostream>
 #include <algorithm>
@@ -23,6 +24,9 @@ void DupCleanerApp::startScan(const std::string& path) {
     exact_duplicates.clear();
     near_duplicates.groups.clear();
     exact_wasted_space = 0;
+    selected_for_deletion.clear();
+    
+    deleter = std::make_unique<SafeDeleter>(path);
     
     is_scanning = true;
     scan_finished_flag = false;
@@ -54,6 +58,10 @@ void DupCleanerApp::render() {
         for (const auto& group : exact_duplicates) {
             exact_wasted_space += calculateWastedSpace(group);
         }
+        
+        // Populate initial selections based on KeepOldest strategy
+        selected_for_deletion = calculateInitialSelections(exact_duplicates, near_duplicates, KeepStrategy::KeepOldest);
+        
         is_scanning = false;
         scan_finished_flag = false;
     }
@@ -80,7 +88,51 @@ void DupCleanerApp::render() {
         ImGui::Text("Scanning in progress... Please wait.");
     } else if (!exact_duplicates.empty() || !near_duplicates.groups.empty()) {
         ImGui::Separator();
-        ImGui::Text("Total Wasted Space (Exact): %s", formatBytes(exact_wasted_space).c_str());
+        
+        uintmax_t selected_wasted = calculateSelectedWastedSpace(selected_for_deletion, exact_duplicates, near_duplicates);
+        ImGui::Text("Total Wasted Space: %s", formatBytes(exact_wasted_space).c_str());
+        ImGui::Text("Selected to Delete: %zu files (%s)", selected_for_deletion.size(), formatBytes(selected_wasted).c_str());
+        
+        if (ImGui::Button("Clean Selected") && !selected_for_deletion.empty()) {
+            ImGui::OpenPopup("Confirm Deletion");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Undo Last Cleanup")) {
+            if (deleter) {
+                deleter->undoLastDeletion();
+                // Refresh scan? For now just rely on undo.
+            }
+        }
+        
+        // Confirmation Modal
+        if (ImGui::BeginPopupModal("Confirm Deletion", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Are you sure you want to delete %zu files?", selected_for_deletion.size());
+            ImGui::Text("Reclaiming: %s", formatBytes(selected_wasted).c_str());
+            ImGui::Separator();
+            
+            if (ImGui::Button("Confirm", ImVec2(120, 0))) {
+                if (deleter) {
+                    DeletionPlan plan;
+                    for (const auto& path_str : selected_for_deletion) {
+                        plan.delete_files.push_back(std::filesystem::path(path_str));
+                    }
+                    deleter->execute(plan, true); // moveToTrash = true
+                    
+                    // Clear state after deletion
+                    exact_duplicates.clear();
+                    near_duplicates.groups.clear();
+                    selected_for_deletion.clear();
+                }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
         ImGui::Separator();
 
         if (ImGui::BeginTabBar("ResultsTabs")) {
@@ -112,7 +164,14 @@ void DupCleanerApp::renderExactDuplicates() {
             auto thumbnail_paths = getPathsForThumbnails(group, false);
 
             for (const auto& file : group) {
-                ImGui::BulletText("%s (%s)", file.path.string().c_str(), formatBytes(file.size).c_str());
+                std::string path_str = file.path.string();
+                bool is_selected = selected_for_deletion.count(path_str) > 0;
+                if (ImGui::Checkbox(("##" + path_str).c_str(), &is_selected)) {
+                    if (is_selected) selected_for_deletion.insert(path_str);
+                    else selected_for_deletion.erase(path_str);
+                }
+                ImGui::SameLine();
+                ImGui::Text("%s (%s)", path_str.c_str(), formatBytes(file.size).c_str());
                 
                 if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), file.path) != thumbnail_paths.end()) {
                     GLuint tex = thumbnail_cache.getTexture(file.path);
@@ -144,12 +203,21 @@ void DupCleanerApp::renderNearDuplicates() {
 
             for (size_t j = 0; j < group.members.size(); ++j) {
                 const auto& member = group.members[j];
+                std::string path_str = member.first.path.string();
+                
+                bool is_selected = selected_for_deletion.count(path_str) > 0;
+                if (ImGui::Checkbox(("##" + path_str).c_str(), &is_selected)) {
+                    if (is_selected) selected_for_deletion.insert(path_str);
+                    else selected_for_deletion.erase(path_str);
+                }
+                ImGui::SameLine();
+
                 if (j == 0) {
-                    ImGui::BulletText("%s (Reference)", member.first.path.string().c_str());
+                    ImGui::Text("%s (Reference)", path_str.c_str());
                 } else {
                     int dist = PerceptualHash::hammingDistance(group.members[0].second, member.second);
                     int sim = 100 - (dist * 100 / 64);
-                    ImGui::BulletText("%s (Similarity: %d%%)", member.first.path.string().c_str(), sim);
+                    ImGui::Text("%s (Similarity: %d%%)", path_str.c_str(), sim);
                 }
 
                 if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), member.first.path) != thumbnail_paths.end()) {
