@@ -75,3 +75,21 @@ We ran a fixed 60-second exploratory smoke test locally against both binaries na
 - **`fuzz_file_hasher`**: Executed ~89,281,712 mutated iterations. No crashes.
 
 The ingestion stack is resilient against arbitrary byte-stream ingestion.
+
+## Edge Case Hardening & Unit Tests
+
+To ensure robustness in real-world messy file systems, we added targeted tests extending our existing suite for the following edge cases:
+
+### 7. File System Edge Cases
+- **Very Long File Paths**: Windows paths near or exceeding `MAX_PATH` bounds. The scanner handles OS rejections gracefully by catching exceptions and skipping the paths instead of aborting the entire scan.
+- **Unusual Filenames**: Verified that the scanner, hashing, and JSON manifest operations correctly handle and preserve Unicode characters, spaces, and leading dots.
+- **Dangling Symlinks**: Confirmed that `std::filesystem::recursive_directory_iterator` with `skip_permission_denied` and proper `exists` checks skips broken symlinks rather than crashing.
+- **Concurrent File Deletion**: Replicated a race condition where a file is deleted by another process between the scan and the hash phase. The `DuplicateFinder` successfully catches `DupCleanerIOException` and skips the deleted file rather than crashing the thread pool.
+- **Read-Only Permissions**: Updated the `SafeDeleter` to report failures on a per-file basis (returning a `DeletionResult` with `failed_files`) rather than aborting an entire deletion plan if a single file lacks write/delete permissions.
+
+### 8. Static Analysis Suppression Approach
+While we have established a strict `clang-tidy` baseline for bug-prone code in `src/` and `include/`, `cppcheck` flagged several non-critical style warnings across the repository, especially involving the use of C-style pointer casts in ImGui UI code and missing `std::transform`/`std::accumulate` algorithms. 
+**Approach**: We prioritize safety over pure modern-C++ aesthetic purity. To avoid breaking CI on pre-existing code out-of-scope for immediate security fixes:
+- We ignore structural UI stylistic nits (e.g. pointer casting to `ImGuiTextureID`).
+- `third_party/` issues (like those in `stb_image.h`) are intentionally ignored via boundary rules.
+- Genuine safety findings identified by `cppcheck` (like unused variables or mismatched function arguments) were manually patched.

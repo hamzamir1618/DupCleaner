@@ -256,6 +256,32 @@ TEST_F(DuplicateFinderIOTest, Determinism) {
     }
 }
 
+TEST_F(DuplicateFinderIOTest, FileDeletedBeforeHashingIsGracefullyIgnored) {
+    fs::path p1 = test_dir / "keep1.dat";
+    fs::path p2 = test_dir / "keep2.dat";
+    fs::path deleted_path = test_dir / "deleted.dat";
+    
+    createFile(p1, "DATA");
+    createFile(p2, "DATA");
+    createFile(deleted_path, "DATA");
+    
+    std::vector<FileEntry> entries;
+    for (const auto& name : {"keep1.dat", "keep2.dat", "deleted.dat"}) {
+        FileEntry e;
+        e.path = test_dir / name;
+        e.size = fs::file_size(e.path);
+        entries.push_back(e);
+    }
+    
+    // Simulate deletion before processing
+    fs::remove(deleted_path);
+    
+    // It should not crash, and should report the remaining duplicates correctly
+    auto results = DuplicateFinder::findExactDuplicates(entries);
+    ASSERT_EQ(results.size(), 1);
+    EXPECT_EQ(results[0].size(), 2);
+}
+
 // --- Near-Duplicate Clustering Tests ---
 #include "stb_image_write.h"
 

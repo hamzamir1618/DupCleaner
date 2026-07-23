@@ -105,9 +105,10 @@ TEST_F(DeleterTest, ExecutePermanentDeletion) {
     plan.delete_files.push_back(p2);
 
     SafeDeleter deleter(temp_dir);
-    bool ok = deleter.execute(plan, false); // moveToTrash = false
+    auto res = deleter.execute(plan, false); // moveToTrash = false
 
-    EXPECT_TRUE(ok);
+    EXPECT_TRUE(res.success);
+    EXPECT_TRUE(res.failed_files.empty());
     EXPECT_FALSE(fs::exists(p1));
     EXPECT_FALSE(fs::exists(p2));
     EXPECT_FALSE(fs::exists(trash_dir));
@@ -124,9 +125,10 @@ TEST_F(DeleterTest, ExecuteMoveToTrashAndUndo) {
     SafeDeleter deleter(temp_dir);
     
     // Execute moveToTrash
-    bool ok = deleter.execute(plan, true);
+    auto res = deleter.execute(plan, true);
     
-    EXPECT_TRUE(ok);
+    EXPECT_TRUE(res.success);
+    EXPECT_TRUE(res.failed_files.empty());
     EXPECT_FALSE(fs::exists(p1));
     EXPECT_FALSE(fs::exists(p2));
     EXPECT_TRUE(fs::exists(trash_dir));
@@ -151,4 +153,40 @@ TEST_F(DeleterTest, ExecuteMoveToTrashAndUndo) {
     std::ifstream in1(p1);
     std::string c1((std::istreambuf_iterator<char>(in1)), std::istreambuf_iterator<char>());
     EXPECT_EQ(c1, "content1");
+}
+
+TEST_F(DeleterTest, ReadOnlyFilesReportedPerFileInsteadOfAborting) {
+    auto p1 = create_file("f1.txt", "content");
+    
+    fs::path sub_dir = temp_dir / "sub";
+    fs::create_directory(sub_dir);
+    auto p2 = sub_dir / "f2.txt";
+    std::ofstream ofs(p2);
+    ofs << "content";
+    ofs.close();
+
+    auto p3 = create_file("f3.txt", "content");
+
+    // Make sub_dir read-only so p2 cannot be deleted on POSIX
+    fs::permissions(sub_dir, fs::perms::owner_read | fs::perms::owner_exec | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, fs::perm_options::replace);
+
+    DeletionPlan plan;
+    plan.delete_files.push_back(p1);
+    plan.delete_files.push_back(p2);
+    plan.delete_files.push_back(p3);
+
+    SafeDeleter deleter(temp_dir);
+    auto res = deleter.execute(plan, false); // Permanent deletion
+
+    // Restore permissions immediately so TearDown can clean it up
+    fs::permissions(sub_dir, fs::perms::owner_all, fs::perm_options::add);
+
+    EXPECT_TRUE(res.success); // The plan didn't fundamentally abort
+    ASSERT_EQ(res.failed_files.size(), 1);
+    EXPECT_EQ(res.failed_files[0], p2);
+
+    // p1 and p3 should be deleted, p2 should remain
+    EXPECT_FALSE(fs::exists(p1));
+    EXPECT_TRUE(fs::exists(p2));
+    EXPECT_FALSE(fs::exists(p3));
 }

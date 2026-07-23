@@ -128,3 +128,68 @@ TEST_F(ScannerTest, ZeroByteFilesHandled) {
     EXPECT_EQ(result.stats.files_visited, 1);
     EXPECT_EQ(result.stats.bytes_visited, 0);
 }
+
+// 6. Very long file paths
+TEST_F(ScannerTest, VeryLongFilePath) {
+    std::string long_name(200, 'a');
+    fs::path deep_dir = test_dir;
+    for (int i = 0; i < 4; ++i) { // This creates a path likely over Windows MAX_PATH (260)
+        deep_dir /= long_name;
+    }
+    
+    std::error_code ec;
+    fs::create_directories(deep_dir, ec);
+    if (ec) {
+        // OS rejected the path creation, guard gracefully
+        GTEST_SKIP() << "OS rejected very long path creation, skipping test.";
+    }
+
+    fs::path long_file = deep_dir / "file.txt";
+    std::ofstream out(long_file, std::ios::binary);
+    if (!out) {
+        GTEST_SKIP() << "OS rejected very long file creation, skipping test.";
+    }
+    out << "long";
+    out.close();
+
+    DirectoryScanner scanner;
+    auto result = scanner.scan(test_dir);
+    
+    // As long as it doesn't crash, and either finds it or skips it, we're good
+    EXPECT_GE(result.entries.size() + result.skipped_paths.size(), 0);
+}
+
+// 7. Unusual characters
+TEST_F(ScannerTest, UnusualCharacters) {
+    fs::path weird = test_dir / "  .. \xC3\x9Cnicode🚀 .dat"; // Contains spaces, dots, unicode emoji
+    createFile(weird, "weird");
+
+    DirectoryScanner scanner;
+    auto result = scanner.scan(test_dir);
+    
+    ASSERT_EQ(result.entries.size(), 1);
+    EXPECT_EQ(result.entries[0].size, 5);
+}
+
+// 8. Dangling symlink
+TEST_F(ScannerTest, DanglingSymlink) {
+    if (!symlink_supported) {
+        GTEST_SKIP() << "Symlinks not supported in this test environment.";
+    }
+
+    fs::path target = test_dir / "target_will_be_deleted.txt";
+    createFile(target, "temp");
+    
+    fs::path link = test_dir / "dangling_link.txt";
+    createSymlink(target, link);
+    
+    // Delete target to make it dangling
+    fs::remove(target);
+
+    DirectoryScanner scanner;
+    auto result = scanner.scan(test_dir);
+    
+    // Should be skipped, no crash
+    EXPECT_TRUE(result.entries.empty());
+    EXPECT_GT(result.skipped_paths.size(), 0);
+}

@@ -57,24 +57,37 @@ std::string SafeDeleter::generateBatchId() const {
     return "batch_" + std::to_string(now) + "_" + std::to_string(dis(gen));
 }
 
-bool SafeDeleter::execute(const DeletionPlan& plan, bool moveToTrash) {
-    if (plan.delete_files.empty()) return true;
+DeletionResult SafeDeleter::execute(const DeletionPlan& plan, bool moveToTrash) {
+    DeletionResult result;
+    result.success = true;
+
+    if (plan.delete_files.empty()) return result;
 
     if (!moveToTrash) {
         // Permanent deletion
         for (const auto& file : plan.delete_files) {
-            if (std::filesystem::exists(file)) {
-                std::filesystem::remove(file);
+            std::error_code ec;
+            if (std::filesystem::exists(file, ec)) {
+                std::filesystem::remove(file, ec);
+                if (ec) {
+                    result.failed_files.push_back(file);
+                }
+            } else if (ec) {
+                result.failed_files.push_back(file);
             }
         }
-        return true;
+        return result;
     }
 
     // Move to trash
     std::filesystem::path trashDir = trash_root_ / ".dupcleaner_trash";
     std::error_code ec;
     std::filesystem::create_directories(trashDir, ec);
-    if (ec) return false;
+    if (ec) {
+        result.success = false;
+        result.failed_files = plan.delete_files;
+        return result;
+    }
 
     std::string batchId = generateBatchId();
     nlohmann::json manifest;
@@ -83,7 +96,10 @@ bool SafeDeleter::execute(const DeletionPlan& plan, bool moveToTrash) {
     manifest["files"] = nlohmann::json::object();
 
     for (const auto& originalPath : plan.delete_files) {
-        if (!std::filesystem::exists(originalPath)) continue;
+        if (!std::filesystem::exists(originalPath, ec) || ec) {
+            if (ec) result.failed_files.push_back(originalPath);
+            continue;
+        }
 
         // Generate a random unique filename in the trash
         std::random_device rd;
@@ -97,6 +113,8 @@ bool SafeDeleter::execute(const DeletionPlan& plan, bool moveToTrash) {
         if (!ec) {
             // Success, record in manifest
             manifest["files"][trashFilename] = originalPath.string(); // Using string() to correctly store unicode paths in JSON
+        } else {
+            result.failed_files.push_back(originalPath);
         }
     }
 
@@ -106,10 +124,11 @@ bool SafeDeleter::execute(const DeletionPlan& plan, bool moveToTrash) {
     if (out) {
         out << manifest.dump(4);
     } else {
-        return false;
+        result.success = false;
+        return result;
     }
 
-    return true;
+    return result;
 }
 
 bool SafeDeleter::undoLastDeletion() {
