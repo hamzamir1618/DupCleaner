@@ -2,7 +2,12 @@
 #include <fstream>
 #include <cstring>
 #include "hasher.h"
+#include "image_loader.h"
+#include "perceptual_hash.h"
 #include "dupcleaner/exceptions.h"
+#include <numeric>
+#include <algorithm>
+#include <cctype>
 
 namespace dupcleaner {
 
@@ -127,6 +132,69 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
     }
 
     return results;
+}
+
+DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold) {
+    NearDuplicateResult result;
+    std::vector<std::pair<FileEntry, uint64_t>> image_hashes;
+
+    for (const auto& entry : entries) {
+        auto ext = entry.path.extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+
+        if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp") {
+            auto img = ImageLoader::load(entry.path);
+            if (!img) {
+                result.skipped_paths.push_back(entry.path);
+            } else {
+                uint64_t hash = PerceptualHash::computeDHash(*img);
+                image_hashes.push_back({entry, hash});
+            }
+        }
+    }
+
+    if (image_hashes.empty()) {
+        return result;
+    }
+
+    // Disjoint Set (Union-Find)
+    std::vector<int> parent(image_hashes.size());
+    std::iota(parent.begin(), parent.end(), 0);
+
+    auto find_parent = [&parent](auto& self, int i) -> int {
+        if (parent[i] == i) return i;
+        return parent[i] = self(self, parent[i]);
+    };
+
+    auto union_sets = [&](int i, int j) {
+        int root_i = find_parent(find_parent, i);
+        int root_j = find_parent(find_parent, j);
+        if (root_i != root_j) {
+            parent[root_i] = root_j;
+        }
+    };
+
+    for (size_t i = 0; i < image_hashes.size(); ++i) {
+        for (size_t j = i + 1; j < image_hashes.size(); ++j) {
+            if (PerceptualHash::hammingDistance(image_hashes[i].second, image_hashes[j].second) <= hammingThreshold) {
+                union_sets(i, j);
+            }
+        }
+    }
+
+    std::unordered_map<int, std::vector<FileEntry>> clusters;
+    for (size_t i = 0; i < image_hashes.size(); ++i) {
+        int root = find_parent(find_parent, i);
+        clusters[root].push_back(image_hashes[i].first);
+    }
+
+    for (auto& [root, group] : clusters) {
+        if (group.size() > 1) {
+            result.groups.push_back(std::move(group));
+        }
+    }
+
+    return result;
 }
 
 } // namespace dupcleaner
