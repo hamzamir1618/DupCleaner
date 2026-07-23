@@ -32,7 +32,7 @@ ScanResult DirectoryScanner::scan(const fs::path& root, const ScannerOptions& sc
         }
 
         const auto& entry = *it;
-        fs::path p = entry.path();
+        const fs::path& p = entry.path();
 
         // Check if directory
         std::error_code is_dir_ec;

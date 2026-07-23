@@ -56,7 +56,7 @@ bool DuplicateFinder::filesAreIdentical(const std::filesystem::path& a, const st
         return false;
     }
 
-    constexpr size_t BUFFER_SIZE = 64 * 1024;
+    constexpr size_t BUFFER_SIZE = 64ULL * 1024ULL;
     std::vector<char> buf_a(BUFFER_SIZE);
     std::vector<char> buf_b(BUFFER_SIZE);
 
@@ -89,6 +89,7 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
 
     auto& pool = getGlobalThreadPool();
     std::vector<std::future<std::vector<std::vector<FileEntry>>>> futures;
+    futures.reserve(size_buckets.size());
 
     // 2. Iterate through size buckets and enqueue tasks
     for (const auto& [size, size_group] : size_buckets) {
@@ -171,6 +172,7 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
         uint64_t hash;
     };
     std::vector<std::future<HashResult>> futures;
+    futures.reserve(entries.size());
 
     for (const auto& entry : entries) {
         auto ext = entry.path.extension().string();

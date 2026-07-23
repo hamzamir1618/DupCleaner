@@ -31,3 +31,14 @@ To prevent stylistic nits from failing CI retroactively on existing code, we est
 ### 4. Uninitialized Primitive Variables
 **Analysis**: Static analysis flagged that raw scalar primitives passed by pointer into `stb_image` (e.g., `int w, h, c;`) were declared without initialization, which breaches `cppcoreguidelines-init-variables` and poses a risk of undefined behavior if the loader failed without modifying them. Similarly, `gray_9x8` was an uninitialized C-style 2D array.
 **Fix**: explicitly initialized `int w = 0, h = 0, c = 0;` in `ImageLoader::load`. Replaced the C-style array with `std::array<std::array<int, 9>, 8> gray_9x8 = {};` in `PerceptualHash::computeDHash` to securely zero-initialize memory and strictly prevent array-to-pointer decay bounds issues.
+
+### 5. Clang-Tidy Deep Dive Pass
+**Analysis**: After strictly parsing `src/` and `include/`, clang-tidy identified several edge-case performance and bug-prone anti-patterns.
+**Fixes Applied**:
+- **`bugprone-exception-escape`**: Both `main()` functions (`debug_cli.cpp` and `main.cpp`) failed to wrap their CLI library execution in a top-level `try-catch` block, which could lead to an ungraceful crash. Wrapped them correctly to return `1`.
+- **`performance-inefficient-vector-operation`**: Multi-threaded result aggregations in `duplicate_finder.cpp` and `main.cpp` used `.push_back` inside loops dynamically allocating thousands of vector entries. Added `.reserve(size)` before loops to eliminate intermediate memory reallocation thrashing.
+- **`performance-avoid-endl`**: Replaced standard library `std::endl` flushes with fast `'\n'` character injections where appropriate.
+- **`bugprone-implicit-widening-of-multiplication-result`**: Identified chunk size definitions (`64 * 1024`) implicitly converting to 64-bit `size_t`. Replaced with explicit literal width modifiers (`64ULL * 1024ULL`).
+- **`performance-unnecessary-copy-initialization`**: Filesystem loop assignments (`fs::path p = entry.path()`) performed deep copies. Upgraded to `const fs::path& p`.
+- **`bugprone-empty-catch`**: Intentionally ignored malformed JSON files when walking the `.dupcleaner_trash` directory. Exonerated explicitly with a `// NOLINT` pragma.
+- **`HeaderFilterRegex`**: Clang-tidy was originally bleeding its strict ruleset into `third_party` dependencies (like `nlohmann_json`). Fixed the YAML regex boundary to strictly anchor `^src/.*|^include/.*`.

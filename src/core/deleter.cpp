@@ -134,7 +134,7 @@ bool SafeDeleter::undoLastDeletion() {
                             latestManifest = entry.path();
                         }
                     }
-                } catch (...) {
+                } catch (...) { // NOLINT(bugprone-empty-catch)
                     // Ignore malformed
                 }
             }

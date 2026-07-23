@@ -5,6 +5,7 @@
 using namespace dupcleaner::cli;
 
 int main() {
+    try {
     CLI::App app;
     CliOptions opts;
     setup_cli(app, opts);
@@ -13,10 +14,12 @@ int main() {
     std::reverse(args.begin(), args.end());
     try {
         app.parse(args);
-        std::cout << "SUCCESS! path=" << opts.path << std::endl;
+        std::cout << "SUCCESS! path=" << opts.path << '\n';
     } catch (const CLI::ParseError& e) {
-        std::cout << "ERROR: " << e.what() << std::endl;
+        std::cout << "ERROR: " << e.what() << '\n';
         return app.exit(e);
     }
-    return 0;
+    } catch (...) {
+        return 1;
+    }
 }
