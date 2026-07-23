@@ -25,5 +25,15 @@ dHash was chosen for Phase 2 over algorithms like pHash (DCT-based) or aHash (av
 
 *Note: In the future, a DCT-based pHash may be integrated for higher accuracy against extreme crops or watermarks.*
 
+### GUI Logic and Render Loop
+The GUI (`dupcleaner_gui`) is intentionally thin, focusing purely on presentation and delegating work to the Core library.
+
+- **Background Scanning**: The GUI invokes `DirectoryScanner` and `DuplicateFinder` on a separate `std::thread`. A `std::atomic<bool>` flag and a `std::mutex` safely communicate completion and transfer results back to the ImGui render loop, ensuring the UI remains perfectly responsive during long I/O operations.
+
+- **Thumbnail Generation and Caching**: To help users visually distinguish exact and near-duplicates, the GUI displays thumbnails. 
+  - Thumbnails are loaded lazily on the main render thread via `ImageLoader`. 
+  - To minimize memory consumption, images are aggressively downscaled on the CPU (using a nearest-neighbor algorithm to a max dimension of 256px) *before* being uploaded as an OpenGL texture (`glTexImage2D`).
+  - Textures are cached in a `ThumbnailCache` (`std::unordered_map<std::string, GLuint>`) keyed by the image's absolute path. This prevents re-decoding and re-uploading the same image every frame. The cache clears OpenGL textures gracefully upon destruction.
+
 ## Testing Strategy
 The core library logic is rigorously unit-tested via GoogleTest (e.g. hashing, file size grouping, path traversal, deletion tracking). The GUI frontend, however, cannot be meaningfully unit-tested or run headless in standard CI pipelines. As a result, the GUI app is deliberately kept as thin as possible, serving only as a visual shell that delegates all heavy lifting to `libdupcleaner`. GUI testing is performed via manual verification, while the CI pipeline exclusively verifies that the GUI target compiles successfully without errors across all platforms.

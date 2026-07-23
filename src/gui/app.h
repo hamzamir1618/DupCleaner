@@ -7,6 +7,7 @@
 #include <atomic>
 #include "dupcleaner/file_entry.h"
 #include "duplicate_finder.h"
+#include "thumbnail_cache.h"
 
 namespace dupcleaner::gui {
 
@@ -35,6 +36,8 @@ private:
     std::vector<std::vector<FileEntry>> exact_duplicates;
     DuplicateFinder::NearDuplicateResult near_duplicates;
     uintmax_t exact_wasted_space = 0;
+    
+    ThumbnailCache thumbnail_cache;
 };
 
 } // namespace dupcleaner::gui
