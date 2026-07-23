@@ -69,6 +69,30 @@ jobs:
         UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       run: ctest --test-dir build -C Debug --output-on-failure -LE performance
 
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy cppcheck
+
+    - name: Configure CMake
+      run: cmake -S . -B build -DDUPCLEANER_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Run clang-tidy
+      run: |
+        # Run clang-tidy on all cpp files in src/
+        find src/core src/cli -name "*.cpp" | xargs clang-tidy -p build/
+
+    - name: Run cppcheck
+      run: |
+        cppcheck --project=build/compile_commands.json --enable=warning,performance,portability --suppress=missingIncludeSystem --inline-suppr --error-exitcode=1 src/core/ src/cli/ include/
+
   build-gui:
     runs-on: ${{ matrix.os }}
     strategy:

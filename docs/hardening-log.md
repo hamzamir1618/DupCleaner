@@ -18,3 +18,16 @@ We have integrated a dedicated GitHub Actions workflow (`sanitizer-test`) that b
 ### 3. `PerceptualHash::computeDHash` Array Indexing
 **Analysis**: The pixel looping logic `int idx = (sy * img.width + sx) * img.channels;` was susceptible to signed integer overflow (`UBSan`) when encountering exceptionally large images, as the multiplication was happening within 32-bit signed bounds before array indexing. 
 **Fix**: Updated the pixel index calculation to explicitly cast the coordinates to `size_t` (`size_t idx = (static_cast<size_t>(sy) * static_cast<size_t>(img.width) + static_cast<size_t>(sx)) * static_cast<size_t>(img.channels);`), guaranteeing that we never overflow the index on large multi-gigapixel images. Array bounds for RGB channel access were analytically verified to never exceed `img.data.size()`.
+
+## Static Analysis (Clang-Tidy & Cppcheck)
+
+We introduced a `static-analysis` CI job running both `clang-tidy` and `cppcheck` to programmatically catch logic errors.
+
+### Baseline & Suppression Strategy
+To prevent stylistic nits from failing CI retroactively on existing code, we established a targeted baseline:
+- **Clang-Tidy**: Configured `.clang-tidy` to strictly enable `bugprone-*`, `performance-*`, and explicit `modernize-*/cppcoreguidelines-*` rules (like bounds-decay and uninitialized variables), while globally treating all active warnings as errors (`WarningsAsErrors: '*'`).
+- **Cppcheck**: Configured to run with `--enable=warning,performance,portability` acting as a second-pass safety net for deeper static control-flow analysis not caught by clang. We suppressed noisy missing system include warnings (`--suppress=missingIncludeSystem`).
+
+### 4. Uninitialized Primitive Variables
+**Analysis**: Static analysis flagged that raw scalar primitives passed by pointer into `stb_image` (e.g., `int w, h, c;`) were declared without initialization, which breaches `cppcoreguidelines-init-variables` and poses a risk of undefined behavior if the loader failed without modifying them. Similarly, `gray_9x8` was an uninitialized C-style 2D array.
+**Fix**: explicitly initialized `int w = 0, h = 0, c = 0;` in `ImageLoader::load`. Replaced the C-style array with `std::array<std::array<int, 9>, 8> gray_9x8 = {};` in `PerceptualHash::computeDHash` to securely zero-initialize memory and strictly prevent array-to-pointer decay bounds issues.
