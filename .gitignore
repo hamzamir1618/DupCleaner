@@ -42,10 +42,27 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps/
+CMakeUserPresets.json
+CPackConfig.cmake
+CPackSourceConfig.cmake
 
-# IDEs
+# Ninja build files
+.ninja_deps
+.ninja_log
+build.ninja
+
+# Build directories
+build/
+bin/
+out/
+dist/
+
+# IDEs & Editor
 .idea/
 .vscode/
+.vs/
+.cache/
+.clangd/
 *.swp
 *.swo
 *.suo
@@ -55,9 +72,12 @@ _deps/
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
-.vs/
 
-# Build directories
-build/
-bin/
-out/
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
