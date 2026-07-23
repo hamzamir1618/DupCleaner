@@ -8,6 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(DUPCLEANER_BUILD_TESTS "Build tests" ON)
 option(DUPCLEANER_BUILD_GUI "Build GUI frontend" ON)
 
+if(DUPCLEANER_BUILD_TESTS)
+    enable_testing()
+endif()
+
 add_subdirectory(src/core)
 
 if(DUPCLEANER_BUILD_GUI)
