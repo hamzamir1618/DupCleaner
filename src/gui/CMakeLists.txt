@@ -53,3 +53,5 @@ else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(dupcleaner_gui PRIVATE OpenGL::GL)
 endif()
+
+install(TARGETS dupcleaner_gui DESTINATION bin)
