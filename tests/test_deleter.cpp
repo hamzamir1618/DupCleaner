@@ -2,7 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
-#include "dupcleaner/deleter.h"
+#include "deleter.h"
 
 namespace fs = std::filesystem;
 using namespace dupcleaner;
