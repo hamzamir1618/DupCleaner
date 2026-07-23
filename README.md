@@ -1,5 +1,7 @@
 # dupcleaner
 
+[![CI](https://github.com/hamzamir1618/DupCleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzamir1618/DupCleaner/actions/workflows/ci.yml)
+
 **Status: early development**
 
 dupcleaner scans a drive, finds exact and near-duplicate files/photos, and reports reclaimable space before deleting anything.
