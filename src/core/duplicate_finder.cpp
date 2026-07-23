@@ -8,18 +8,20 @@
 #include <numeric>
 #include <algorithm>
 #include <cctype>
+#include <map>
+#include "thread_pool.h"
 
 namespace dupcleaner {
 
-std::unordered_map<uintmax_t, std::vector<FileEntry>> DuplicateFinder::groupBySize(const std::vector<FileEntry>& entries) {
-    std::unordered_map<uintmax_t, std::vector<FileEntry>> buckets;
+std::map<uintmax_t, std::vector<FileEntry>> DuplicateFinder::groupBySize(const std::vector<FileEntry>& entries) {
+    std::map<uintmax_t, std::vector<FileEntry>> buckets;
     for (const auto& entry : entries) {
         buckets[entry.size].push_back(entry);
     }
     return buckets;
 }
 
-void DuplicateFinder::filterUniqueSizes(std::unordered_map<uintmax_t, std::vector<FileEntry>>& buckets) {
+void DuplicateFinder::filterUniqueSizes(std::map<uintmax_t, std::vector<FileEntry>>& buckets) {
     for (auto it = buckets.begin(); it != buckets.end(); ) {
         if (it->second.size() <= 1) {
             it = buckets.erase(it);
@@ -81,55 +83,78 @@ bool DuplicateFinder::filesAreIdentical(const std::filesystem::path& a, const st
 std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries) {
     std::vector<std::vector<FileEntry>> results;
     
-    // 1. Group by size
+    // 1. Group by size (uses std::map to ensure deterministic ordering of tasks)
     auto size_buckets = groupBySize(entries);
     filterUniqueSizes(size_buckets);
 
-    // 2. Iterate through size buckets
+    auto& pool = getGlobalThreadPool();
+    std::vector<std::future<std::vector<std::vector<FileEntry>>>> futures;
+
+    // 2. Iterate through size buckets and enqueue tasks
     for (const auto& [size, size_group] : size_buckets) {
-        
-        // 3. Sub-group by fingerprint
-        std::unordered_map<uint64_t, std::vector<FileEntry>> hash_buckets;
-        for (const auto& entry : size_group) {
-            try {
-                uint64_t hash = FileHasher::fingerprint(entry.path);
-                hash_buckets[hash].push_back(entry);
-            } catch (const DupCleanerIOException&) {
-                // If we can't hash it, silently skip it for duplicate consideration
-                continue; 
+        futures.push_back(pool.enqueue([size_group]() {
+            std::vector<std::vector<FileEntry>> local_results;
+            
+            // 3. Sub-group by fingerprint
+            std::unordered_map<uint64_t, std::vector<FileEntry>> hash_buckets;
+            for (const auto& entry : size_group) {
+                try {
+                    uint64_t hash = FileHasher::fingerprint(entry.path);
+                    hash_buckets[hash].push_back(entry);
+                } catch (const DupCleanerIOException&) {
+                    continue; 
+                }
             }
-        }
-        
-        // 4. Verify identical bytes
-        for (const auto& [hash, hash_group] : hash_buckets) {
-            if (hash_group.size() <= 1) continue;
+            
+            // 4. Verify identical bytes
+            for (const auto& [hash, hash_group] : hash_buckets) {
+                if (hash_group.size() <= 1) continue;
 
-            // Resolve potential hash collisions
-            std::vector<std::vector<FileEntry>> confirmed_groups;
+                std::vector<std::vector<FileEntry>> confirmed_groups;
 
-            for (const auto& entry : hash_group) {
-                bool added = false;
-                for (auto& confirmed_group : confirmed_groups) {
-                    if (filesAreIdentical(entry.path, confirmed_group[0].path)) {
-                        confirmed_group.push_back(entry);
-                        added = true;
-                        break;
+                for (const auto& entry : hash_group) {
+                    bool added = false;
+                    for (auto& confirmed_group : confirmed_groups) {
+                        if (filesAreIdentical(entry.path, confirmed_group[0].path)) {
+                            confirmed_group.push_back(entry);
+                            added = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!added) {
+                        confirmed_groups.push_back({entry});
                     }
                 }
-                
-                if (!added) {
-                    confirmed_groups.push_back({entry});
-                }
-            }
 
-            // 5. Output confirmed groups
-            for (auto& confirmed_group : confirmed_groups) {
-                if (confirmed_group.size() > 1) {
-                    results.push_back(std::move(confirmed_group));
+                // 5. Output confirmed groups
+                for (auto& confirmed_group : confirmed_groups) {
+                    if (confirmed_group.size() > 1) {
+                        // Sort files within the group to ensure stable order
+                        std::sort(confirmed_group.begin(), confirmed_group.end(), [](const FileEntry& a, const FileEntry& b) {
+                            return a.path.string() < b.path.string();
+                        });
+                        local_results.push_back(std::move(confirmed_group));
+                    }
                 }
             }
+            return local_results;
+        }));
+    }
+
+    // Collect all results
+    for (auto& f : futures) {
+        auto bucket_results = f.get();
+        for (auto& group : bucket_results) {
+            results.push_back(std::move(group));
         }
     }
+
+    // Sort final results deterministically
+    std::sort(results.begin(), results.end(), [](const std::vector<FileEntry>& a, const std::vector<FileEntry>& b) {
+        if (a.empty() || b.empty()) return false;
+        return a[0].path.string() < b[0].path.string();
+    });
 
     return results;
 }
@@ -137,19 +162,38 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
 DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold) {
     NearDuplicateResult result;
     std::vector<std::pair<FileEntry, uint64_t>> image_hashes;
+    
+    auto& pool = getGlobalThreadPool();
+    
+    struct HashResult {
+        bool success;
+        FileEntry entry;
+        uint64_t hash;
+    };
+    std::vector<std::future<HashResult>> futures;
 
     for (const auto& entry : entries) {
         auto ext = entry.path.extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
 
         if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp") {
-            auto img = ImageLoader::load(entry.path);
-            if (!img) {
-                result.skipped_paths.push_back(entry.path);
-            } else {
+            futures.push_back(pool.enqueue([entry]() -> HashResult {
+                auto img = ImageLoader::load(entry.path);
+                if (!img) {
+                    return {false, entry, 0};
+                }
                 uint64_t hash = PerceptualHash::computeDHash(*img);
-                image_hashes.push_back({entry, hash});
-            }
+                return {true, entry, hash};
+            }));
+        }
+    }
+    
+    for (size_t i = 0; i < futures.size(); ++i) {
+        auto res = futures[i].get();
+        if (res.success) {
+            image_hashes.push_back({res.entry, res.hash});
+        } else {
+            result.skipped_paths.push_back(res.entry.path);
         }
     }
 
@@ -190,11 +234,22 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
 
     for (auto& [root, group] : clusters) {
         if (group.size() > 1) {
+            // Sort files within the group to ensure stable order
+            std::sort(group.begin(), group.end(), [](const auto& a, const auto& b) {
+                return a.first.path.string() < b.first.path.string();
+            });
+            
             NearDuplicateGroup g;
             g.members = std::move(group);
             result.groups.push_back(std::move(g));
         }
     }
+    
+    // Sort final results deterministically
+    std::sort(result.groups.begin(), result.groups.end(), [](const NearDuplicateGroup& a, const NearDuplicateGroup& b) {
+        if (a.members.empty() || b.members.empty()) return false;
+        return a.members[0].first.path.string() < b.members[0].first.path.string();
+    });
 
     return result;
 }

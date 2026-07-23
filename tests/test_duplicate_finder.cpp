@@ -216,6 +216,46 @@ TEST_F(DuplicateFinderIOTest, FalsePositivesAvoided) {
     EXPECT_TRUE(results.empty());
 }
 
+TEST_F(DuplicateFinderIOTest, Determinism) {
+    std::vector<FileEntry> entries;
+    
+    // Create 10 groups of 5 pairs of duplicates, meaning 10 sets.
+    // They will end up in buckets of the same size if we give them the same size.
+    // To ensure a large bucket that triggers thread pooling nondeterminism:
+    for (int i = 0; i < 50; ++i) {
+        std::string path_a = (test_dir / ("group_a_" + std::to_string(i) + ".txt")).string();
+        std::string path_b = (test_dir / ("group_b_" + std::to_string(i) + ".txt")).string();
+        std::string content = "identical content " + std::string(2, '0' + (i % 10)); // Always 20 chars
+        createFile(path_a, content);
+        createFile(path_b, content);
+        
+        FileEntry ea;
+        ea.path = path_a;
+        ea.size = 20;
+        
+        FileEntry eb;
+        eb.path = path_b;
+        eb.size = 20;
+        
+        entries.push_back(ea);
+        entries.push_back(eb);
+    }
+
+    auto first_run = DuplicateFinder::findExactDuplicates(entries);
+
+    // Run 10 times and assert exactly the same order every time
+    for (int i = 0; i < 10; ++i) {
+        auto subsequent_run = DuplicateFinder::findExactDuplicates(entries);
+        ASSERT_EQ(first_run.size(), subsequent_run.size());
+        for (size_t j = 0; j < first_run.size(); ++j) {
+            ASSERT_EQ(first_run[j].size(), subsequent_run[j].size());
+            for (size_t k = 0; k < first_run[j].size(); ++k) {
+                EXPECT_EQ(first_run[j][k].path.string(), subsequent_run[j][k].path.string());
+            }
+        }
+    }
+}
+
 // --- Near-Duplicate Clustering Tests ---
 #include "stb_image_write.h"
 
