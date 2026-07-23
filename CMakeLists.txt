@@ -23,3 +23,5 @@ add_subdirectory(src/cli)
 if(DUPCLEANER_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+add_subdirectory(tools)
