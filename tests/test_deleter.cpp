@@ -161,14 +161,16 @@ TEST_F(DeleterTest, ReadOnlyFilesReportedPerFileInsteadOfAborting) {
     fs::path sub_dir = temp_dir / "sub";
     fs::create_directory(sub_dir);
     auto p2 = sub_dir / "f2.txt";
-    std::ofstream ofs(p2);
-    ofs << "content";
-    ofs.close();
+    std::ofstream ofs_lock(p2);
+    ofs_lock << "content";
+    ofs_lock.flush(); // Keep it open to lock it on Windows!
 
     auto p3 = create_file("f3.txt", "content");
 
+    std::error_code ec;
     // Make sub_dir read-only so p2 cannot be deleted on POSIX
-    fs::permissions(sub_dir, fs::perms::owner_read | fs::perms::owner_exec | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, fs::perm_options::replace);
+    fs::permissions(sub_dir, fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write, fs::perm_options::remove, ec);
+    ASSERT_FALSE(ec) << "Failed to set sub_dir permissions: " << ec.message();
 
     DeletionPlan plan;
     plan.delete_files.push_back(p1);
@@ -179,7 +181,8 @@ TEST_F(DeleterTest, ReadOnlyFilesReportedPerFileInsteadOfAborting) {
     auto res = deleter.execute(plan, false); // Permanent deletion
 
     // Restore permissions immediately so TearDown can clean it up
-    fs::permissions(sub_dir, fs::perms::owner_all, fs::perm_options::add);
+    fs::permissions(sub_dir, fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write, fs::perm_options::add, ec);
+    ofs_lock.close(); // Release the lock
 
     EXPECT_TRUE(res.success); // The plan didn't fundamentally abort
     ASSERT_EQ(res.failed_files.size(), 1);
