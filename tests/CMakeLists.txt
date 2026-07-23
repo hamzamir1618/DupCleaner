@@ -14,7 +14,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(dupcleaner_tests test_placeholder.cpp test_file_entry.cpp test_scanner.cpp test_duplicate_finder.cpp test_hasher.cpp test_cli_args.cpp)
 target_include_directories(dupcleaner_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/cli)
-target_link_libraries(dupcleaner_tests PRIVATE dupcleaner_core GTest::gtest_main)
+target_link_libraries(dupcleaner_tests PRIVATE dupcleaner_core GTest::gtest_main CLI11::CLI11)
 
 include(GoogleTest)
 gtest_discover_tests(dupcleaner_tests)
