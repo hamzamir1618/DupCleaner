@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
+#include <filesystem>
 #include "dupcleaner/file_entry.h"
 
 namespace dupcleaner {
@@ -20,6 +21,14 @@ public:
 
     // Finds and returns all groups of exact duplicates using size, hashing, and byte comparison.
     static std::vector<std::vector<FileEntry>> findExactDuplicates(const std::vector<FileEntry>& entries);
+
+    struct NearDuplicateResult {
+        std::vector<std::vector<FileEntry>> groups;
+        std::vector<std::filesystem::path> skipped_paths;
+    };
+
+    // Finds near-duplicate images within the specified hamming threshold.
+    static NearDuplicateResult findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold = 5);
 };
 
 } // namespace dupcleaner

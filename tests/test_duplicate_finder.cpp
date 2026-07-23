@@ -215,3 +215,98 @@ TEST_F(DuplicateFinderIOTest, FalsePositivesAvoided) {
     auto results = DuplicateFinder::findExactDuplicates(entries);
     EXPECT_TRUE(results.empty());
 }
+
+// --- Near-Duplicate Clustering Tests ---
+#include "stb_image_write.h"
+
+class NearDuplicateFinderTest : public ::testing::Test {
+protected:
+    fs::path temp_dir;
+
+    void SetUp() override {
+        auto now = std::chrono::system_clock::now().time_since_epoch().count();
+        temp_dir = fs::temp_directory_path() / ("dupcleaner_neardup_" + std::to_string(now));
+        fs::create_directories(temp_dir);
+    }
+
+    void TearDown() override {
+        if (fs::exists(temp_dir)) {
+            std::error_code ec;
+            fs::remove_all(temp_dir, ec);
+        }
+    }
+
+    FileEntry create_png(const std::string& name, int width, int height, bool gradient, bool inverted = false) {
+        fs::path p = temp_dir / name;
+        std::vector<unsigned char> pixels(width * height * 3);
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int idx = (y * width + x) * 3;
+                unsigned char val = gradient ? (x * 255) / width : (((x / 10) % 2 == (y / 10) % 2) ? 255 : 0);
+                if (inverted) val = 255 - val;
+                pixels[idx] = val;
+                pixels[idx+1] = val;
+                pixels[idx+2] = val;
+            }
+        }
+        stbi_write_png(p.string().c_str(), width, height, 3, pixels.data(), width * 3);
+        
+        FileEntry e;
+        e.path = p;
+        e.size = fs::file_size(p);
+        return e;
+    }
+
+    FileEntry create_invalid(const std::string& name) {
+        fs::path p = temp_dir / name;
+        std::ofstream ofs(p);
+        ofs << "Not an image!";
+        ofs.close();
+        FileEntry e;
+        e.path = p;
+        e.size = fs::file_size(p);
+        return e;
+    }
+};
+
+TEST_F(NearDuplicateFinderTest, IdenticalImagesCluster) {
+    std::vector<FileEntry> entries;
+    entries.push_back(create_png("img1.jpg", 100, 100, true));
+    entries.push_back(create_png("img2.jpg", 100, 100, true));
+    
+    auto result = DuplicateFinder::findNearDuplicateImages(entries, 5);
+    ASSERT_EQ(result.groups.size(), 1);
+    EXPECT_EQ(result.groups[0].size(), 2);
+    EXPECT_TRUE(result.skipped_paths.empty());
+}
+
+TEST_F(NearDuplicateFinderTest, SimilarImagesCluster) {
+    std::vector<FileEntry> entries;
+    entries.push_back(create_png("img1.jpg", 100, 100, true));
+    entries.push_back(create_png("img2.jpg", 200, 150, true)); // Resized
+    
+    auto result = DuplicateFinder::findNearDuplicateImages(entries, 5);
+    ASSERT_EQ(result.groups.size(), 1);
+    EXPECT_EQ(result.groups[0].size(), 2);
+}
+
+TEST_F(NearDuplicateFinderTest, DifferentImagesDoNotCluster) {
+    std::vector<FileEntry> entries;
+    entries.push_back(create_png("img1.jpg", 100, 100, true, false));
+    entries.push_back(create_png("img2.jpg", 100, 100, true, true)); // Inverted
+    
+    auto result = DuplicateFinder::findNearDuplicateImages(entries, 5);
+    EXPECT_TRUE(result.groups.empty());
+}
+
+TEST_F(NearDuplicateFinderTest, InvalidImagesSkipped) {
+    std::vector<FileEntry> entries;
+    entries.push_back(create_png("img1.jpg", 100, 100, true));
+    entries.push_back(create_invalid("bad.jpg")); // Corrupt / fake image
+    entries.push_back(create_png("img2.png", 100, 100, true));
+    
+    auto result = DuplicateFinder::findNearDuplicateImages(entries, 5);
+    ASSERT_EQ(result.groups.size(), 1); // img1 and img2 cluster
+    ASSERT_EQ(result.skipped_paths.size(), 1);
+    EXPECT_EQ(result.skipped_paths[0].filename().string(), "bad.jpg");
+}
