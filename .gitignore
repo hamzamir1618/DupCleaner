@@ -81,3 +81,6 @@ dist/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# CI Error Logs
+*-errors.md
