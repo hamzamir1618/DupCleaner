@@ -1,7 +1,13 @@
 #include <gtest/gtest.h>
 #include "duplicate_finder.h"
+#include <fstream>
+#include <filesystem>
+#include <chrono>
 
+namespace fs = std::filesystem;
 using namespace dupcleaner;
+
+// --- Bucketing Tests ---
 
 TEST(DuplicateFinderTest, AllUniqueSizesProduceNoCandidates) {
     std::vector<FileEntry> entries;
@@ -22,14 +28,11 @@ TEST(DuplicateFinderTest, AllUniqueSizesProduceNoCandidates) {
 TEST(DuplicateFinderTest, MatchingSizesGroupedCorrectly) {
     std::vector<FileEntry> entries;
     
-    // Two files of size 100
     FileEntry e1; e1.path = "1a.txt"; e1.size = 100; entries.push_back(e1);
     FileEntry e2; e2.path = "1b.txt"; e2.size = 100; entries.push_back(e2);
     
-    // One file of size 200
     FileEntry e3; e3.path = "2a.txt"; e3.size = 200; entries.push_back(e3);
     
-    // Three files of size 300
     FileEntry e4; e4.path = "3a.txt"; e4.size = 300; entries.push_back(e4);
     FileEntry e5; e5.path = "3b.txt"; e5.size = 300; entries.push_back(e5);
     FileEntry e6; e6.path = "3c.txt"; e6.size = 300; entries.push_back(e6);
@@ -39,22 +42,11 @@ TEST(DuplicateFinderTest, MatchingSizesGroupedCorrectly) {
 
     DuplicateFinder::filterUniqueSizes(buckets);
     
-    // Size 200 should be filtered out
     EXPECT_EQ(buckets.size(), 2);
-    
-    // Size 100 should have 2 entries
     EXPECT_EQ(buckets[100].size(), 2);
-    
-    // Size 300 should have 3 entries
     EXPECT_EQ(buckets[300].size(), 3);
 }
 
-// NOTE: Known Edge Case
-// Zero-byte files all bucket together. Many filesystems have several legitimate 
-// empty files (lock files, markers, placeholders) that aren't "duplicates" in a 
-// meaningful sense for the user to delete to save space. 
-// We currently bucket them together, but this is a known edge case that might need 
-// special-casing (e.g., stripping zero-byte buckets entirely) in the future.
 TEST(DuplicateFinderTest, ZeroByteFilesBucketTogether) {
     std::vector<FileEntry> entries;
     
@@ -65,7 +57,85 @@ TEST(DuplicateFinderTest, ZeroByteFilesBucketTogether) {
     auto buckets = DuplicateFinder::groupBySize(entries);
     DuplicateFinder::filterUniqueSizes(buckets);
     
-    // They are grouped as potential duplicates.
     EXPECT_EQ(buckets.size(), 1);
     EXPECT_EQ(buckets[0].size(), 3);
+}
+
+// --- IO Identity Tests ---
+
+class DuplicateFinderIOTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        test_dir = fs::temp_directory_path() / ("dupcleaner_test_dupio_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()));
+        fs::create_directory(test_dir);
+    }
+
+    void TearDown() override {
+        std::error_code ec;
+        fs::remove_all(test_dir, ec);
+    }
+
+    void createFile(const fs::path& path, const std::string& content) {
+        std::ofstream out(path, std::ios::binary);
+        out << content;
+        out.close();
+    }
+
+    void createLargeFile(const fs::path& path, size_t size_bytes, char fill_char, int differing_byte_index = -1, char differ_char = 'X') {
+        std::ofstream out(path, std::ios::binary);
+        std::vector<char> buffer(64 * 1024, fill_char);
+        size_t written = 0;
+        while (written < size_bytes) {
+            size_t to_write = std::min(buffer.size(), size_bytes - written);
+            
+            if (differing_byte_index >= 0 && 
+                (size_t)differing_byte_index >= written && 
+                (size_t)differing_byte_index < written + to_write) {
+                
+                size_t offset_in_buffer = differing_byte_index - written;
+                buffer[offset_in_buffer] = differ_char;
+                out.write(buffer.data(), to_write);
+                buffer[offset_in_buffer] = fill_char; // restore
+            } else {
+                out.write(buffer.data(), to_write);
+            }
+            written += to_write;
+        }
+        out.close();
+    }
+
+    fs::path test_dir;
+};
+
+TEST_F(DuplicateFinderIOTest, SelfComparisonReturnsTrue) {
+    fs::path p1 = test_dir / "self.dat";
+    createFile(p1, "Data");
+    EXPECT_TRUE(DuplicateFinder::filesAreIdentical(p1, p1));
+}
+
+TEST_F(DuplicateFinderIOTest, LargeIdenticalFilesCompareEqual) {
+    fs::path p1 = test_dir / "large1.dat";
+    fs::path p2 = test_dir / "large2.dat";
+    size_t size = 150 * 1024; // > 64KB chunk
+    createLargeFile(p1, size, 'A');
+    createLargeFile(p2, size, 'A');
+    EXPECT_TRUE(DuplicateFinder::filesAreIdentical(p1, p2));
+}
+
+TEST_F(DuplicateFinderIOTest, DifferOnlyInFirstByte) {
+    fs::path p1 = test_dir / "first1.dat";
+    fs::path p2 = test_dir / "first2.dat";
+    size_t size = 150 * 1024;
+    createLargeFile(p1, size, 'A');
+    createLargeFile(p2, size, 'A', 0, 'B'); // First byte differs
+    EXPECT_FALSE(DuplicateFinder::filesAreIdentical(p1, p2));
+}
+
+TEST_F(DuplicateFinderIOTest, DifferOnlyInLastByte) {
+    fs::path p1 = test_dir / "last1.dat";
+    fs::path p2 = test_dir / "last2.dat";
+    size_t size = 150 * 1024;
+    createLargeFile(p1, size, 'A');
+    createLargeFile(p2, size, 'A', size - 1, 'B'); // Last byte differs
+    EXPECT_FALSE(DuplicateFinder::filesAreIdentical(p1, p2));
 }
