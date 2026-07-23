@@ -173,15 +173,15 @@ TEST_F(ScannerTest, UnusualCharacters) {
 
 // 8. Dangling symlink
 TEST_F(ScannerTest, DanglingSymlink) {
-    if (!symlink_supported) {
-        GTEST_SKIP() << "Symlinks not supported in this test environment.";
-    }
-
     fs::path target = test_dir / "target_will_be_deleted.txt";
     createFile(target, "temp");
     
     fs::path link = test_dir / "dangling_link.txt";
     createSymlink(target, link);
+
+    if (!symlink_supported) {
+        GTEST_SKIP() << "Symlinks not supported in this test environment.";
+    }
     
     // Delete target to make it dangling
     fs::remove(target);

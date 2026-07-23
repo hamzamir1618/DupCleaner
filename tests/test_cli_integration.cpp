@@ -108,7 +108,7 @@ TEST_F(CliIntegrationTest, CleanInteractivePiping) {
     // Pipe "y\n" to simulate user confirming the prompt
     std::string output = run_cli("clean", "--trash", "y\n");
     EXPECT_NE(output.find("Proceed with deletion?"), std::string::npos);
-    EXPECT_NE(output.find("Successfully moved files to trash."), std::string::npos);
+    EXPECT_NE(output.find("Deletion plan executed successfully."), std::string::npos);
 
     // One of the dups should be deleted (moved to trash)
     bool dup1 = fs::exists(temp_dir / "dup1.txt");
@@ -119,7 +119,7 @@ TEST_F(CliIntegrationTest, CleanInteractivePiping) {
 
     TEST_F(CliIntegrationTest, CleanYesAndUndo) {
         std::string output = run_cli("clean", "--yes --trash");
-        EXPECT_NE(output.find("Successfully moved files to trash."), std::string::npos);
+        EXPECT_NE(output.find("Deletion plan executed successfully."), std::string::npos);
 
         bool dup1 = fs::exists(temp_dir / "dup1.txt");
         bool dup2 = fs::exists(temp_dir / "dup2.txt");
