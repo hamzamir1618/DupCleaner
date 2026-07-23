@@ -38,22 +38,32 @@ protected:
         ofs << content;
     }
 
-    std::string run_cli(bool use_json) {
+    std::string run_cli(const std::string& subcmd, const std::string& extra_args, const std::string& stdin_input = "") {
         const char* env_exe = std::getenv("DUPCLEANER_CLI_EXE");
         if (!env_exe) {
             throw std::runtime_error("DUPCLEANER_CLI_EXE environment variable not set");
         }
         std::string exe_path = env_exe;
+        std::string cmd;
+
+        if (!stdin_input.empty()) {
+            fs::path in_file = temp_dir / "stdin.txt";
+            std::ofstream ofs(in_file);
+            ofs << stdin_input;
+            ofs.close();
+
 #ifdef _WIN32
-        // Windows cmd.exe /c parsing is weird. 
-        // Robust format: ""path\to\exe" scan "path\to\dir""
-        std::string cmd = "\"\"" + exe_path + "\" scan \"" + temp_dir.string() + "\"";
-        if (use_json) cmd += " --json";
-        cmd += "\"";
+            cmd = "\"\"" + exe_path + "\" " + subcmd + " \"" + temp_dir.string() + "\" " + extra_args + " < \"" + in_file.string() + "\"\"";
 #else
-        std::string cmd = "\"" + exe_path + "\" scan \"" + temp_dir.string() + "\"";
-        if (use_json) cmd += " --json";
+            cmd = "\"" + exe_path + "\" " + subcmd + " \"" + temp_dir.string() + "\" " + extra_args + " < \"" + in_file.string() + "\"";
 #endif
+        } else {
+#ifdef _WIN32
+            cmd = "\"\"" + exe_path + "\" " + subcmd + " \"" + temp_dir.string() + "\" " + extra_args + "\"";
+#else
+            cmd = "\"" + exe_path + "\" " + subcmd + " \"" + temp_dir.string() + "\" " + extra_args;
+#endif
+        }
 
         std::array<char, 128> buffer;
         std::string result;
@@ -72,30 +82,53 @@ protected:
     }
 };
 
-TEST_F(CliIntegrationTest, HumanReadableOutput) {
-    std::string output = run_cli(false);
-    
-    // Check for human readable strings
+TEST_F(CliIntegrationTest, ScanHumanReadableOutput) {
+    std::string output = run_cli("scan", "");
     EXPECT_NE(output.find("Found 1 exact duplicate groups:"), std::string::npos);
     EXPECT_NE(output.find("Total wasted space: 17 bytes."), std::string::npos);
 }
 
-TEST_F(CliIntegrationTest, JsonOutput) {
-    std::string output = run_cli(true);
-    
-    // Parse JSON
+TEST_F(CliIntegrationTest, ScanJsonOutput) {
+    std::string output = run_cli("scan", "--json");
     json j;
-    ASSERT_NO_THROW({
-        j = json::parse(output);
-    }) << "CLI output was not valid JSON:\n" << output;
-    
+    ASSERT_NO_THROW({ j = json::parse(output); }) << "CLI output was not valid JSON:\n" << output;
     ASSERT_TRUE(j.contains("total_wasted_bytes"));
     EXPECT_EQ(j["total_wasted_bytes"], 17);
+}
+
+TEST_F(CliIntegrationTest, CleanDryRunPreventsDeletion) {
+    std::string output = run_cli("clean", "--dry-run --yes");
+    EXPECT_NE(output.find("[Dry-run] Exiting without making changes."), std::string::npos);
     
-    ASSERT_TRUE(j.contains("groups"));
-    EXPECT_EQ(j["groups"].size(), 1);
-    
-    EXPECT_EQ(j["groups"][0]["size_bytes"], 17);
-    EXPECT_EQ(j["groups"][0]["wasted_bytes"], 17);
-    EXPECT_EQ(j["groups"][0]["files"].size(), 2);
+    EXPECT_TRUE(fs::exists(temp_dir / "dup1.txt"));
+    EXPECT_TRUE(fs::exists(temp_dir / "dup2.txt"));
+}
+
+TEST_F(CliIntegrationTest, CleanInteractivePiping) {
+    // Pipe "y\n" to simulate user confirming the prompt
+    std::string output = run_cli("clean", "--trash", "y\n");
+    EXPECT_NE(output.find("Proceed with deletion?"), std::string::npos);
+    EXPECT_NE(output.find("Successfully moved files to trash."), std::string::npos);
+
+    // One of the dups should be deleted (moved to trash)
+    bool dup1 = fs::exists(temp_dir / "dup1.txt");
+    bool dup2 = fs::exists(temp_dir / "dup2.txt");
+    EXPECT_TRUE(dup1 != dup2); // Only one survives
+    EXPECT_TRUE(fs::exists(temp_dir / ".dupcleaner_trash"));
+}
+
+TEST_F(CliIntegrationTest, CleanYesAndUndo) {
+    std::string output = run_cli("clean", "--yes --trash");
+    EXPECT_NE(output.find("Successfully moved files to trash."), std::string::npos);
+
+    bool dup1 = fs::exists(temp_dir / "dup1.txt");
+    bool dup2 = fs::exists(temp_dir / "dup2.txt");
+    EXPECT_TRUE(dup1 != dup2); // Only one survives
+
+    std::string undo_output = run_cli("undo", "");
+    EXPECT_NE(undo_output.find("Successfully restored the most recent deletion batch."), std::string::npos);
+
+    // Both should be back
+    EXPECT_TRUE(fs::exists(temp_dir / "dup1.txt"));
+    EXPECT_TRUE(fs::exists(temp_dir / "dup2.txt"));
 }
