@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(DUPCLEANER_BUILD_TESTS "Build tests" ON)
 option(DUPCLEANER_BUILD_GUI "Build GUI frontend" ON)
+option(DUPCLEANER_BUILD_FUZZERS "Build libFuzzer targets (requires Clang)" OFF)
 
 if(DUPCLEANER_BUILD_TESTS)
     enable_testing()

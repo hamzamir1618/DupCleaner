@@ -37,3 +37,18 @@ target_link_libraries(perf_scan_benchmark PRIVATE dupcleaner_core GTest::gtest_m
 
 add_test(NAME PerfScanBenchmark COMMAND perf_scan_benchmark)
 set_tests_properties(PerfScanBenchmark PROPERTIES LABELS "performance")
+
+# Fuzzers
+if(DUPCLEANER_BUILD_FUZZERS AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_executable(fuzz_image_loader fuzz/fuzz_image_loader.cpp)
+    target_include_directories(fuzz_image_loader PRIVATE ${CMAKE_SOURCE_DIR}/src/core)
+    target_link_libraries(fuzz_image_loader PRIVATE dupcleaner_core)
+    target_compile_options(fuzz_image_loader PRIVATE -fsanitize=fuzzer)
+    target_link_options(fuzz_image_loader PRIVATE -fsanitize=fuzzer)
+
+    add_executable(fuzz_file_hasher fuzz/fuzz_file_hasher.cpp)
+    target_include_directories(fuzz_file_hasher PRIVATE ${CMAKE_SOURCE_DIR}/src/core)
+    target_link_libraries(fuzz_file_hasher PRIVATE dupcleaner_core)
+    target_compile_options(fuzz_file_hasher PRIVATE -fsanitize=fuzzer)
+    target_link_options(fuzz_file_hasher PRIVATE -fsanitize=fuzzer)
+endif()

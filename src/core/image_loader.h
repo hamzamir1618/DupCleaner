@@ -18,6 +18,9 @@ public:
     // Loads an image from the given path.
     // Returns std::nullopt if the file is missing, not an image, or corrupt.
     static std::optional<ImageData> load(const std::filesystem::path& path);
+
+    // Loads an image from a memory buffer (useful for fuzzing or archive ingestion).
+    static std::optional<ImageData> load(const unsigned char* buffer, size_t length);
 };
 
 } // namespace dupcleaner

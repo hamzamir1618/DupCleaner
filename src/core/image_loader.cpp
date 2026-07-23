@@ -30,4 +30,28 @@ std::optional<ImageData> ImageLoader::load(const std::filesystem::path& path) {
     return img;
 }
 
+std::optional<ImageData> ImageLoader::load(const unsigned char* buffer, size_t length) {
+    if (!buffer || length == 0) return std::nullopt;
+
+    int w = 0, h = 0, c = 0;
+    
+    unsigned char* raw_data = stbi_load_from_memory(buffer, static_cast<int>(length), &w, &h, &c, 0);
+
+    if (!raw_data) {
+        return std::nullopt;
+    }
+
+    ImageData img;
+    img.width = w;
+    img.height = h;
+    img.channels = c;
+    
+    size_t data_size = static_cast<size_t>(w) * static_cast<size_t>(h) * static_cast<size_t>(c);
+    img.data.assign(raw_data, raw_data + data_size);
+
+    stbi_image_free(raw_data);
+
+    return img;
+}
+
 } // namespace dupcleaner

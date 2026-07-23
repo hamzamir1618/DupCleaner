@@ -52,4 +52,9 @@ uint64_t FileHasher::fingerprint(const std::filesystem::path& path) {
     return hash;
 }
 
+uint64_t FileHasher::fingerprint(const unsigned char* buffer, size_t length) {
+    if (!buffer) return 0;
+    return XXH64(buffer, length, 0);
+}
+
 } // namespace dupcleaner
