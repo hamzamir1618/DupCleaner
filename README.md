@@ -11,13 +11,25 @@ dupcleaner scans a drive, finds exact and near-duplicate files/photos, and repor
 - [x] Detect exact duplicates via hashing and safe byte-for-byte verification.
 
 ## Planned Features
-- [ ] Detect near-duplicate photos (perceptual hashing)
+- [x] Detect near-duplicate photos (perceptual hashing)
 - [ ] GUI frontend
 - [x] Report reclaimable space
 - [x] Safe deletion capabilities
 - [x] CLI frontend
 
 ## Example Usage
+
+### Finding Near-Duplicate Images
+In addition to exact duplicates, you can scan for slightly altered images (e.g. resized, slightly cropped, compressed) using perceptual hashing:
+```bash
+$ dupcleaner_cli scan ./my_photos --include-near-duplicates --similarity-threshold 10
+...
+Found 1 near-duplicate image groups (Threshold: 10):
+
+Near-Duplicate Group 1:
+  - C:\my_photos\vacation.jpg (Reference Image)
+  - C:\my_photos\edited\vacation_instagram.jpg (Similarity: 95% | Distance: 3)
+```
 
 ### Human-Readable Output
 ```bash

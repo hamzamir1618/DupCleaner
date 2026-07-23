@@ -182,15 +182,17 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
         }
     }
 
-    std::unordered_map<int, std::vector<FileEntry>> clusters;
+    std::unordered_map<int, std::vector<std::pair<FileEntry, uint64_t>>> clusters;
     for (size_t i = 0; i < image_hashes.size(); ++i) {
         int root = find_parent(find_parent, i);
-        clusters[root].push_back(image_hashes[i].first);
+        clusters[root].push_back(image_hashes[i]);
     }
 
     for (auto& [root, group] : clusters) {
         if (group.size() > 1) {
-            result.groups.push_back(std::move(group));
+            NearDuplicateGroup g;
+            g.members = std::move(group);
+            result.groups.push_back(std::move(g));
         }
     }
 
