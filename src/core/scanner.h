@@ -22,9 +22,13 @@ struct ScanResult {
     ScanStats stats;
 };
 
+struct ScannerOptions {
+    uintmax_t min_size{0};
+};
+
 class DirectoryScanner {
 public:
-    ScanResult scan(const std::filesystem::path& root);
+    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = {});
 };
 
 } // namespace dupcleaner

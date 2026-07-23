@@ -5,7 +5,7 @@ namespace fs = std::filesystem;
 
 namespace dupcleaner {
 
-ScanResult DirectoryScanner::scan(const fs::path& root) {
+ScanResult DirectoryScanner::scan(const fs::path& root, const ScannerOptions& scan_opts) {
     ScanResult result;
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -68,6 +68,10 @@ ScanResult DirectoryScanner::scan(const fs::path& root) {
             result.skipped_paths.push_back("Skipped unreadable size: " + p.string());
             result.stats.items_skipped++;
             continue;
+        }
+
+        if (file_size < scan_opts.min_size) {
+            continue; // Skip without reporting as an error
         }
 
         // Get last write time
