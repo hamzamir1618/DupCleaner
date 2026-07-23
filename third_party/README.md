@@ -9,3 +9,10 @@ Other dependencies (like xxHash, GoogleTest, CLI11, Dear ImGui, GLFW) are fetche
 - **License**: Public Domain / MIT dual license
 - **Commit Hash**: `013ac3beddff3dbffafd5177e7972067cd2b5083` (from [nothings/stb](https://github.com/nothings/stb))
 - **Description**: Image loading library for perceptual hashing.
+
+## stb_image_write.h
+
+- **Source URL**: https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h
+- **License**: Public Domain / MIT dual license
+- **Commit Hash**: `master` (from [nothings/stb](https://github.com/nothings/stb))
+- **Description**: Image writing library for generating dynamic unit test payloads.
