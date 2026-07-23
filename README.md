@@ -1,6 +1,7 @@
 # DupCleaner
 
 [![CI](https://github.com/hamzamir1618/DupCleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzamir1618/DupCleaner/actions/workflows/ci.yml)
+[![Release Packages](https://github.com/hamzamir1618/DupCleaner/actions/workflows/release.yml/badge.svg)](https://github.com/hamzamir1618/DupCleaner/actions/workflows/release.yml)
 
 **DupCleaner** is a blazing-fast, cross-platform utility for finding and safely managing exact duplicate files and near-duplicate images (e.g., resized, slightly cropped, compressed photos). It scans your drives, reports exactly how much space is being wasted, and allows you to safely clean up storage using an intuitive Graphical User Interface (GUI) or a powerful Command Line Interface (CLI).
 
@@ -164,6 +165,16 @@ Instantly restores the last batch of files sent to the `.dupcleaner_trash`.
 ```bash
 dupcleaner_cli undo [OPTIONS] path
 ```
+
+## Installation
+
+Pre-built packages are generated automatically via GitHub Actions for Windows, macOS, and Linux.
+
+1. Navigate to the **Actions** tab of this repository.
+2. Select the **Release Packages** workflow on the left sidebar.
+3. Click on the latest successful workflow run.
+4. Download the corresponding artifact for your OS from the **Artifacts** section (`DupCleaner-Windows.zip`, `DupCleaner-macOS.tar.gz`, or `DupCleaner-Linux.tar.gz`).
+5. Extract the archive and run the included `dupcleaner_gui` or `dupcleaner_cli` executable.
 
 ---
 

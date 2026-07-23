@@ -15,3 +15,5 @@ FetchContent_MakeAvailable(cli11)
 add_executable(dupcleaner_cli main.cpp interactive_review.cpp)
 target_include_directories(dupcleaner_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src/core)
 target_link_libraries(dupcleaner_cli PRIVATE dupcleaner_core CLI11::CLI11)
+
+install(TARGETS dupcleaner_cli DESTINATION bin)

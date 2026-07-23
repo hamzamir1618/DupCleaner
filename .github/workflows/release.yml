@@ -1,0 +1,46 @@
+name: Release Packages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: DupCleaner-Linux
+          - os: macos-latest
+            artifact_name: DupCleaner-macOS
+          - os: windows-latest
+            artifact_name: DupCleaner-Windows
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libwayland-dev libxkbcommon-dev wayland-protocols
+
+    - name: Configure CMake
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDUPCLEANER_BUILD_TESTS=OFF -DDUPCLEANER_BUILD_GUI=ON -DDUPCLEANER_BUILD_FUZZERS=OFF
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Package with CPack
+      working-directory: build
+      run: cpack -C Release
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: |
+          build/*.zip
+          build/*.tar.gz

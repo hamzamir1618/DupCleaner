@@ -26,3 +26,21 @@ if(DUPCLEANER_BUILD_TESTS)
 endif()
 
 add_subdirectory(tools)
+
+# Packaging with CPack
+set(CPACK_PACKAGE_NAME "DupCleaner")
+set(CPACK_PACKAGE_VENDOR "DupCleaner Authors")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A fast, cross-platform duplicate file and image cleaner.")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+
+if(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+elseif(APPLE)
+    set(CPACK_GENERATOR "TGZ")
+else()
+    set(CPACK_GENERATOR "TGZ")
+endif()
+
+include(CPack)
