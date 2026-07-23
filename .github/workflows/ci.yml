@@ -91,7 +91,7 @@ jobs:
 
     - name: Run cppcheck
       run: |
-        cppcheck --project=build/compile_commands.json --enable=warning,performance,portability --suppress=missingIncludeSystem --inline-suppr --error-exitcode=1 src/core/ src/cli/ include/
+        cppcheck --enable=warning,performance,portability --suppress=missingIncludeSystem --inline-suppr --error-exitcode=1 src/core/ src/cli/ include/
 
   build-gui:
     runs-on: ${{ matrix.os }}
