@@ -29,3 +29,11 @@ add_dependencies(dupcleaner_cli_integration dupcleaner_cli)
 gtest_discover_tests(dupcleaner_cli_integration
     PROPERTIES ENVIRONMENT "DUPCLEANER_CLI_EXE=$<TARGET_FILE:dupcleaner_cli>"
 )
+
+# Performance Benchmark
+add_executable(perf_scan_benchmark perf_scan_benchmark.cpp ${CMAKE_SOURCE_DIR}/tools/gen_test_tree.cpp)
+target_include_directories(perf_scan_benchmark PRIVATE ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/tools)
+target_link_libraries(perf_scan_benchmark PRIVATE dupcleaner_core GTest::gtest_main)
+
+add_test(NAME PerfScanBenchmark COMMAND perf_scan_benchmark)
+set_tests_properties(PerfScanBenchmark PROPERTIES LABELS "performance")

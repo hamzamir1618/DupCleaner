@@ -23,7 +23,17 @@ dHash was chosen for Phase 2 over algorithms like pHash (DCT-based) or aHash (av
 3. Each row is scanned pixel by pixel: if the left pixel is brighter than the right pixel, a bit is flipped. This yields exactly 64 bits of gradient data, encoded as a `uint64_t`.
 4. Image similarity is calculated by checking the Hamming distance (`std::popcount(a ^ b)`) between two hashes.
 
-*Note: In the future, a DCT-based pHash may be integrated for higher accuracy against extreme crops or watermarks.*
+## Performance Testing
+To ensure the application scales gracefully to massive photo libraries, a synthetic data generator (`gen_test_tree`) and a performance benchmark test (`perf_scan_benchmark`) are included.
+
+The benchmark generates a configurable synthetic directory tree (default 100,000 files, 20% duplicate ratio) and times both the filesystem traversal (`DirectoryScanner`) and the hashing/comparison pass (`DuplicateFinder::findExactDuplicates`). 
+
+Because this test generates several gigabytes of data and takes significant time, it is excluded from the default CI suite. To run it explicitly:
+```bash
+cmake --build build --target perf_scan_benchmark
+ctest --test-dir build -C Release -L performance -V
+```
+*Note: A baseline run on a modern NVMe SSD (100,000 files, up to 64KB each) should yield a scan throughput upwards of 10,000 files/sec.*
 
 ### GUI Logic and Render Loop
 The GUI (`dupcleaner_gui`) is intentionally thin, focusing purely on presentation and delegating work to the Core library.
