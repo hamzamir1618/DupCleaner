@@ -158,17 +158,17 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
     }
 
     // Disjoint Set (Union-Find)
-    std::vector<int> parent(image_hashes.size());
+    std::vector<size_t> parent(image_hashes.size());
     std::iota(parent.begin(), parent.end(), 0);
 
-    auto find_parent = [&parent](auto& self, int i) -> int {
+    auto find_parent = [&parent](auto& self, size_t i) -> size_t {
         if (parent[i] == i) return i;
         return parent[i] = self(self, parent[i]);
     };
 
-    auto union_sets = [&](int i, int j) {
-        int root_i = find_parent(find_parent, i);
-        int root_j = find_parent(find_parent, j);
+    auto union_sets = [&](size_t i, size_t j) {
+        size_t root_i = find_parent(find_parent, i);
+        size_t root_j = find_parent(find_parent, j);
         if (root_i != root_j) {
             parent[root_i] = root_j;
         }
@@ -182,9 +182,9 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
         }
     }
 
-    std::unordered_map<int, std::vector<std::pair<FileEntry, uint64_t>>> clusters;
+    std::unordered_map<size_t, std::vector<std::pair<FileEntry, uint64_t>>> clusters;
     for (size_t i = 0; i < image_hashes.size(); ++i) {
-        int root = find_parent(find_parent, i);
+        size_t root = find_parent(find_parent, i);
         clusters[root].push_back(image_hashes[i]);
     }
 

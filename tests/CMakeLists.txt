@@ -21,7 +21,7 @@ gtest_discover_tests(dupcleaner_tests)
 
 # CLI Integration Tests
 add_executable(dupcleaner_cli_integration test_cli_integration.cpp)
-target_include_directories(dupcleaner_cli_integration PRIVATE ${CMAKE_SOURCE_DIR}/src/cli)
+target_include_directories(dupcleaner_cli_integration PRIVATE ${CMAKE_SOURCE_DIR}/src/cli ${CMAKE_SOURCE_DIR}/third_party)
 target_link_libraries(dupcleaner_cli_integration PRIVATE GTest::gtest_main nlohmann_json::nlohmann_json)
 
 add_dependencies(dupcleaner_cli_integration dupcleaner_cli)
