@@ -134,6 +134,7 @@ TEST_F(CliIntegrationTest, CleanInteractivePiping) {
     }
 
 // --- Near-Duplicate CLI Tests ---
+#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
 class CliNearDuplicateIntegrationTest : public CliIntegrationTest {
