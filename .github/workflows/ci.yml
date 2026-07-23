@@ -34,3 +34,35 @@ jobs:
 
     - name: Test
       run: ctest --test-dir build -C Release --output-on-failure
+
+  build-gui:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+
+    - name: Cache CMake _deps
+      uses: actions/cache@v4
+      with:
+        path: build/_deps
+        key: ${{ runner.os }}-cmake-deps-gui-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-cmake-deps-gui-
+          ${{ runner.os }}-cmake-deps-
+
+    - name: Configure CMake
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDUPCLEANER_BUILD_TESTS=OFF -DDUPCLEANER_BUILD_GUI=ON
+
+    - name: Build
+      run: cmake --build build --config Release --target dupcleaner_gui

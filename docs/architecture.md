@@ -24,3 +24,6 @@ dHash was chosen for Phase 2 over algorithms like pHash (DCT-based) or aHash (av
 4. Image similarity is calculated by checking the Hamming distance (`std::popcount(a ^ b)`) between two hashes.
 
 *Note: In the future, a DCT-based pHash may be integrated for higher accuracy against extreme crops or watermarks.*
+
+## Testing Strategy
+The core library logic is rigorously unit-tested via GoogleTest (e.g. hashing, file size grouping, path traversal, deletion tracking). The GUI frontend, however, cannot be meaningfully unit-tested or run headless in standard CI pipelines. As a result, the GUI app is deliberately kept as thin as possible, serving only as a visual shell that delegates all heavy lifting to `libdupcleaner`. GUI testing is performed via manual verification, while the CI pipeline exclusively verifies that the GUI target compiles successfully without errors across all platforms.

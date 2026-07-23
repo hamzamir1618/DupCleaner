@@ -122,8 +122,18 @@ This project relies on the following libraries:
 
 ## Build Instructions
 
+### Prerequisites
+- **Windows / macOS**: Built-in graphics libraries are sufficient.
+- **Linux (Ubuntu/Debian)**: Requires OpenGL and X11 development headers.
+  ```bash
+  sudo apt-get install libgl1-mesa-dev xorg-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+  ```
+
+### Building
+You can optionally build the tests (`-DDUPCLEANER_BUILD_TESTS=ON`) or the GUI frontend (`-DDUPCLEANER_BUILD_GUI=ON`). Both are enabled by default.
+
 ```bash
-cmake -S . -B build -DDUPCLEANER_BUILD_TESTS=ON
+cmake -S . -B build -DDUPCLEANER_BUILD_TESTS=ON -DDUPCLEANER_BUILD_GUI=ON
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
