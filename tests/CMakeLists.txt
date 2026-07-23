@@ -12,7 +12,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(dupcleaner_tests test_placeholder.cpp)
+add_executable(dupcleaner_tests test_placeholder.cpp test_file_entry.cpp)
 target_link_libraries(dupcleaner_tests PRIVATE dupcleaner_core GTest::gtest_main)
 
 include(GoogleTest)

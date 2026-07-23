@@ -33,3 +33,7 @@ cmake -S . -B build -DDUPCLEANER_BUILD_TESTS=ON
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+## Contributing
+
+Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting Pull Requests to ensure your tests, documentation, and CI workflows meet project conventions.
