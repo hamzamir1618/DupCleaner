@@ -139,3 +139,79 @@ TEST_F(DuplicateFinderIOTest, DifferOnlyInLastByte) {
     createLargeFile(p2, size, 'A', size - 1, 'B'); // Last byte differs
     EXPECT_FALSE(DuplicateFinder::filesAreIdentical(p1, p2));
 }
+
+// --- End-to-End findExactDuplicates Tests ---
+
+TEST_F(DuplicateFinderIOTest, NoDuplicatesReportEmpty) {
+    createFile(test_dir / "1.txt", "A");
+    createFile(test_dir / "2.txt", "BB"); // Different size
+    createFile(test_dir / "3.txt", "CCC"); // Different size
+    
+    std::vector<FileEntry> entries;
+    for (int i = 1; i <= 3; ++i) {
+        FileEntry e;
+        e.path = test_dir / (std::to_string(i) + ".txt");
+        e.size = fs::file_size(e.path);
+        entries.push_back(e);
+    }
+    
+    auto results = DuplicateFinder::findExactDuplicates(entries);
+    EXPECT_TRUE(results.empty());
+}
+
+TEST_F(DuplicateFinderIOTest, ThreeCopiesAndTwoUnrelated) {
+    createFile(test_dir / "dup1.dat", "DATA");
+    createFile(test_dir / "dup2.dat", "DATA");
+    createFile(test_dir / "dup3.dat", "DATA");
+    
+    createFile(test_dir / "unrelated1.dat", "NOPE");
+    createFile(test_dir / "unrelated2.dat", "12345"); // Diff size
+    
+    std::vector<FileEntry> entries;
+    for (const auto& name : {"dup1.dat", "dup2.dat", "dup3.dat", "unrelated1.dat", "unrelated2.dat"}) {
+        FileEntry e;
+        e.path = test_dir / name;
+        e.size = fs::file_size(e.path);
+        entries.push_back(e);
+    }
+    
+    auto results = DuplicateFinder::findExactDuplicates(entries);
+    ASSERT_EQ(results.size(), 1);
+    EXPECT_EQ(results[0].size(), 3);
+}
+
+TEST_F(DuplicateFinderIOTest, MultipleDuplicateSets) {
+    createFile(test_dir / "set1_a.dat", "FOO");
+    createFile(test_dir / "set1_b.dat", "FOO");
+    
+    createFile(test_dir / "set2_a.dat", "BARBAZ");
+    createFile(test_dir / "set2_b.dat", "BARBAZ");
+    
+    std::vector<FileEntry> entries;
+    for (const auto& name : {"set1_a.dat", "set1_b.dat", "set2_a.dat", "set2_b.dat"}) {
+        FileEntry e;
+        e.path = test_dir / name;
+        e.size = fs::file_size(e.path);
+        entries.push_back(e);
+    }
+    
+    auto results = DuplicateFinder::findExactDuplicates(entries);
+    EXPECT_EQ(results.size(), 2);
+}
+
+TEST_F(DuplicateFinderIOTest, FalsePositivesAvoided) {
+    // Two files of the same size but different contents
+    createFile(test_dir / "false1.dat", "SAME_SIZE_DIFF_A");
+    createFile(test_dir / "false2.dat", "SAME_SIZE_DIFF_B");
+    
+    std::vector<FileEntry> entries;
+    for (const auto& name : {"false1.dat", "false2.dat"}) {
+        FileEntry e;
+        e.path = test_dir / name;
+        e.size = fs::file_size(e.path);
+        entries.push_back(e);
+    }
+    
+    auto results = DuplicateFinder::findExactDuplicates(entries);
+    EXPECT_TRUE(results.empty());
+}

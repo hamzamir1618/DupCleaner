@@ -1,6 +1,8 @@
 #include "duplicate_finder.h"
 #include <fstream>
 #include <cstring>
+#include "hasher.h"
+#include "dupcleaner/exceptions.h"
 
 namespace dupcleaner {
 
@@ -69,6 +71,62 @@ bool DuplicateFinder::filesAreIdentical(const std::filesystem::path& a, const st
     }
 
     return true;
+}
+
+std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries) {
+    std::vector<std::vector<FileEntry>> results;
+    
+    // 1. Group by size
+    auto size_buckets = groupBySize(entries);
+    filterUniqueSizes(size_buckets);
+
+    // 2. Iterate through size buckets
+    for (const auto& [size, size_group] : size_buckets) {
+        
+        // 3. Sub-group by fingerprint
+        std::unordered_map<uint64_t, std::vector<FileEntry>> hash_buckets;
+        for (const auto& entry : size_group) {
+            try {
+                uint64_t hash = FileHasher::fingerprint(entry.path);
+                hash_buckets[hash].push_back(entry);
+            } catch (const DupCleanerIOException&) {
+                // If we can't hash it, silently skip it for duplicate consideration
+                continue; 
+            }
+        }
+        
+        // 4. Verify identical bytes
+        for (const auto& [hash, hash_group] : hash_buckets) {
+            if (hash_group.size() <= 1) continue;
+
+            // Resolve potential hash collisions
+            std::vector<std::vector<FileEntry>> confirmed_groups;
+
+            for (const auto& entry : hash_group) {
+                bool added = false;
+                for (auto& confirmed_group : confirmed_groups) {
+                    if (filesAreIdentical(entry.path, confirmed_group[0].path)) {
+                        confirmed_group.push_back(entry);
+                        added = true;
+                        break;
+                    }
+                }
+                
+                if (!added) {
+                    confirmed_groups.push_back({entry});
+                }
+            }
+
+            // 5. Output confirmed groups
+            for (auto& confirmed_group : confirmed_groups) {
+                if (confirmed_group.size() > 1) {
+                    results.push_back(std::move(confirmed_group));
+                }
+            }
+        }
+    }
+
+    return results;
 }
 
 } // namespace dupcleaner
