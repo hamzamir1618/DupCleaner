@@ -6,6 +6,7 @@
 #include "thumbnail_logic.h"
 #include "imgui.h"
 #include <iostream>
+#include <algorithm>
 
 namespace dupcleaner::gui {
 
