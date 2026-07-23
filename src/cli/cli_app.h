@@ -21,6 +21,7 @@ struct CliOptions {
     bool trash{true};
     bool dry_run{false};
     bool yes{false};
+    bool interactive{false};
 
     bool include_near_duplicates{false};
     int similarity_threshold{10};
@@ -53,7 +54,15 @@ inline void setup_cli(CLI::App& app, CliOptions& opts) {
 
     clean_cmd->add_flag("--dry-run", opts.dry_run, "Print deletion plan without modifying filesystem");
     clean_cmd->add_flag("--yes", opts.yes, "Skip interactive confirmation prompt");
-    clean_cmd->callback([&opts]() { opts.has_clean_command = true; });
+    clean_cmd->add_flag("--interactive", opts.interactive, "Interactively review each duplicate group");
+    clean_cmd->add_flag("--include-near-duplicates", opts.include_near_duplicates, "Also clean near-duplicate images using perceptual hashing");
+    clean_cmd->add_option("--similarity-threshold", opts.similarity_threshold, "Hamming distance threshold for near-duplicates (default: 10)");
+    clean_cmd->callback([&opts]() { 
+        if (opts.yes && opts.interactive) {
+            throw CLI::ValidationError("--yes and --interactive are mutually exclusive.");
+        }
+        opts.has_clean_command = true; 
+    });
 
     // --- UNDO SUBCOMMAND ---
     auto* undo_cmd = app.add_subcommand("undo", "Undo the last trash batch");
