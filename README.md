@@ -12,10 +12,10 @@ dupcleaner scans a drive, finds exact and near-duplicate files/photos, and repor
 
 ## Planned Features
 - [ ] Detect near-duplicate photos (perceptual hashing)
-- [ ] Report reclaimable space
-- [ ] Safe deletion capabilities
 - [ ] GUI frontend
-- [ ] CLI frontend
+- [x] Report reclaimable space
+- [x] Safe deletion capabilities
+- [x] CLI frontend
 
 ## Example Usage
 
@@ -55,6 +55,33 @@ $ dupcleaner_cli scan ./my_photos --json
   },
   "total_wasted_bytes": 1048576
 }
+```
+
+### Safely Cleaning Duplicates
+To analyze and safely remove exact duplicates (keeping the oldest file in each group):
+```bash
+$ dupcleaner_cli clean ./my_photos --strategy oldest
+Found 1 exact duplicate groups:
+...
+Total space to reclaim: 1048576 bytes
+
+Proceed with deletion? [y/N]: y
+Successfully moved files to trash.
+```
+
+By default, files are moved to a `.dupcleaner_trash/` directory inside your scanned folder. You can perform a dry-run first:
+```bash
+$ dupcleaner_cli clean ./my_photos --dry-run
+```
+
+> [!WARNING]  
+> If you pass the `--permanent` flag, the files will be irreversibly unlinked from the filesystem and **cannot** be recovered! 
+
+### Undoing Deletions
+If you accidentally deleted files to the `.dupcleaner_trash/`, you can instantly restore the latest batch to their exact original pathways:
+```bash
+$ dupcleaner_cli undo ./my_photos
+Successfully restored the most recent deletion batch.
 ```
 ## Dependencies
 
