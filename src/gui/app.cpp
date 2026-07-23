@@ -3,6 +3,7 @@
 #include "scanner.h"
 #include "duplicate_finder.h"
 #include "perceptual_hash.h"
+#include "thumbnail_logic.h"
 #include "imgui.h"
 #include <iostream>
 
@@ -106,8 +107,20 @@ void DupCleanerApp::renderExactDuplicates() {
         uintmax_t wasted = calculateWastedSpace(group);
         
         if (ImGui::CollapsingHeader(("Group " + std::to_string(i + 1) + " - Wasted: " + formatBytes(wasted)).c_str())) {
+            bool is_image = isImageGroup(group);
+            auto thumbnail_paths = getPathsForThumbnails(group, false);
+
             for (const auto& file : group) {
                 ImGui::BulletText("%s (%s)", file.path.string().c_str(), formatBytes(file.size).c_str());
+                
+                if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), file.path) != thumbnail_paths.end()) {
+                    GLuint tex = thumbnail_cache.getTexture(file.path);
+                    if (tex != 0) {
+                        ImGui::Indent();
+                        ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 100));
+                        ImGui::Unindent();
+                    }
+                }
             }
         }
     }
@@ -122,6 +135,12 @@ void DupCleanerApp::renderNearDuplicates() {
     for (size_t i = 0; i < near_duplicates.groups.size(); ++i) {
         const auto& group = near_duplicates.groups[i];
         if (ImGui::CollapsingHeader(("Near Duplicate Group " + std::to_string(i + 1)).c_str())) {
+            std::vector<FileEntry> entries;
+            for (const auto& m : group.members) entries.push_back(m.first);
+            
+            bool is_image = isImageGroup(entries);
+            auto thumbnail_paths = getPathsForThumbnails(entries, true);
+
             for (size_t j = 0; j < group.members.size(); ++j) {
                 const auto& member = group.members[j];
                 if (j == 0) {
@@ -130,6 +149,15 @@ void DupCleanerApp::renderNearDuplicates() {
                     int dist = PerceptualHash::hammingDistance(group.members[0].second, member.second);
                     int sim = 100 - (dist * 100 / 64);
                     ImGui::BulletText("%s (Similarity: %d%%)", member.first.path.string().c_str(), sim);
+                }
+
+                if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), member.first.path) != thumbnail_paths.end()) {
+                    GLuint tex = thumbnail_cache.getTexture(member.first.path);
+                    if (tex != 0) {
+                        ImGui::Indent();
+                        ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 100));
+                        ImGui::Unindent();
+                    }
                 }
             }
         }
