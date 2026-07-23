@@ -22,10 +22,10 @@ uint64_t FileHasher::fingerprint(const std::filesystem::path& path) {
         throw DupCleanerIOException("Failed to reset xxHash state for: " + path.string());
     }
 
-    constexpr size_t BUFFER_SIZE = 64 * 1024; // 64 KB chunks
+    constexpr size_t BUFFER_SIZE = 64ULL * 1024ULL; // 64 KB chunks
     std::vector<char> buffer(BUFFER_SIZE);
 
-    while (file.read(buffer.data(), buffer.size())) {
+    while (file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()))) {
         if (XXH64_update(state, buffer.data(), file.gcount()) == XXH_ERROR) {
             XXH64_freeState(state);
             throw DupCleanerIOException("Failed to update xxHash during read for: " + path.string());

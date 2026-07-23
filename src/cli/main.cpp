@@ -15,6 +15,7 @@ using namespace dupcleaner;
 using namespace dupcleaner::cli;
 
 int main(int argc, char** argv) {
+    try {
     CLI::App app{"dupcleaner - Find and manage duplicate files"};
     CliOptions opts;
     setup_cli(app, opts);
@@ -243,6 +244,7 @@ int main(int argc, char** argv) {
                 std::vector<std::vector<FileEntry>> nd_raw_groups;
                 for (const auto& g : near_dup_result.groups) {
                     std::vector<FileEntry> members;
+                    members.reserve(g.members.size());
                     for (const auto& m : g.members) members.push_back(m.first);
                     nd_raw_groups.push_back(members);
                 }
@@ -254,6 +256,7 @@ int main(int argc, char** argv) {
                 std::vector<std::vector<FileEntry>> nd_raw_groups;
                 for (const auto& g : near_dup_result.groups) {
                     std::vector<FileEntry> members;
+                    members.reserve(g.members.size());
                     for (const auto& m : g.members) members.push_back(m.first);
                     nd_raw_groups.push_back(members);
                 }
@@ -301,5 +304,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    return 0;
+    } catch (...) {
+        return 1;
+    }
 }

@@ -7,7 +7,7 @@
 
 namespace dupcleaner {
 
-enum class KeepStrategy {
+enum class KeepStrategy : std::uint8_t {
     KeepOldest,
     KeepNewest,
     KeepFirstAlphabetically
