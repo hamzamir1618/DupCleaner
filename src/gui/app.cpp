@@ -116,7 +116,8 @@ void DupCleanerApp::render() {
                     for (const auto& path_str : selected_for_deletion) {
                         plan.delete_files.push_back(std::filesystem::path(path_str));
                     }
-                    deleter->execute(plan, true); // moveToTrash = true
+                    (void)deleter->execute(plan, true); // moveToTrash = true
+                    // Ignore failure details in basic GUI for now
                     
                     // Clear state after deletion
                     exact_duplicates.clear();

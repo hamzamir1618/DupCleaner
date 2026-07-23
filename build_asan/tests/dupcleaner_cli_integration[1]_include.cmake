@@ -1,0 +1,5 @@
+if(EXISTS "/mnt/d/OFFICE WORK/RESUME-CV STUFF/Projects/duplicate-photo-cleaner/dupcleaner/build_asan/tests/dupcleaner_cli_integration[1]_tests.cmake")
+  include("/mnt/d/OFFICE WORK/RESUME-CV STUFF/Projects/duplicate-photo-cleaner/dupcleaner/build_asan/tests/dupcleaner_cli_integration[1]_tests.cmake")
+else()
+  add_test(dupcleaner_cli_integration_NOT_BUILT dupcleaner_cli_integration_NOT_BUILT)
+endif()

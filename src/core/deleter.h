@@ -18,6 +18,11 @@ struct DeletionPlan {
     std::vector<std::filesystem::path> delete_files;
 };
 
+struct DeletionResult {
+    bool success;
+    std::vector<std::filesystem::path> failed_files;
+};
+
 class SafeDeleter {
 public:
     explicit SafeDeleter(const std::filesystem::path& trashRoot);
@@ -26,8 +31,8 @@ public:
     DeletionPlan planDeletion(const std::vector<std::vector<FileEntry>>& duplicateGroups, KeepStrategy strategy) const;
 
     // Executes the deletion plan. If moveToTrash is true, moves files to .dupcleaner_trash.
-    // Returns true on success.
-    bool execute(const DeletionPlan& plan, bool moveToTrash);
+    // Returns DeletionResult with overall success and a list of files that failed to delete.
+    DeletionResult execute(const DeletionPlan& plan, bool moveToTrash);
 
     // Restores the most recent batch of moved files.
     bool undoLastDeletion();

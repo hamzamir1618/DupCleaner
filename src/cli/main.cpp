@@ -293,11 +293,16 @@ int main(int argc, char** argv) {
 
         if (do_delete) {
             bool moveToTrash = opts.trash && !opts.permanent;
-            if (deleter.execute(plan, moveToTrash)) {
-                std::cout << "Successfully " << (moveToTrash ? "moved files to trash." : "permanently deleted files.") << "\n";
-            } else {
+            auto res = deleter.execute(plan, moveToTrash);
+            if (!res.success) {
                 std::cerr << "Failed to execute deletion plan.\n";
-                return 1;
+            } else if (!res.failed_files.empty()) {
+                std::cerr << "Deletion plan completed but some files failed to delete:\n";
+                for (const auto& f : res.failed_files) {
+                    std::cerr << "  - " << f.string() << "\n";
+                }
+            } else {
+                std::cout << "Deletion plan executed successfully.\n";
             }
         } else {
             std::cout << "Aborted by user.\n";
