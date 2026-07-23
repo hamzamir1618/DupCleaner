@@ -22,6 +22,8 @@ set(IMGUI_DIR ${imgui_SOURCE_DIR})
 
 add_executable(dupcleaner_gui 
     main.cpp
+    app.cpp
+    formatting.cpp
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp

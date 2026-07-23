@@ -1,6 +1,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "app.h"
 #include <stdio.h>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -59,6 +60,9 @@ int main(int, char**) {
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
+    // Setup Application
+    dupcleaner::gui::DupCleanerApp app;
+
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -68,16 +72,8 @@ int main(int, char**) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        bool show_demo_window = true;
-        // ImGui::ShowDemoWindow(&show_demo_window);
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-        {
-            ImGui::Begin("Hello, dupcleaner!");
-            ImGui::Text("This is the future home of the Duplicate Photo Cleaner GUI.");
-            ImGui::End();
-        }
+        // 1. Render the application
+        app.render();
 
         // Rendering
         ImGui::Render();
