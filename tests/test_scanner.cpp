@@ -44,9 +44,11 @@ protected:
 // 1. Empty directory
 TEST_F(ScannerTest, EmptyDirectoryReturnsZero) {
     DirectoryScanner scanner;
-    auto results = scanner.scan(test_dir);
-    EXPECT_TRUE(results.empty());
-    EXPECT_TRUE(scanner.getSkippedPaths().empty());
+    auto result = scanner.scan(test_dir);
+    EXPECT_TRUE(result.entries.empty());
+    EXPECT_TRUE(result.skipped_paths.empty());
+    EXPECT_EQ(result.stats.files_visited, 0);
+    EXPECT_EQ(result.stats.directories_visited, 1); // Only root
 }
 
 // 2. Known set of files
@@ -55,12 +57,15 @@ TEST_F(ScannerTest, KnownFilesAreScanned) {
     createFile(test_dir / "file2.txt", "12345");
 
     DirectoryScanner scanner;
-    auto results = scanner.scan(test_dir);
-    EXPECT_EQ(results.size(), 2);
+    auto result = scanner.scan(test_dir);
+    EXPECT_EQ(result.entries.size(), 2);
+    EXPECT_EQ(result.stats.files_visited, 2);
+    EXPECT_EQ(result.stats.bytes_visited, 8); // 3 + 5 bytes
+    EXPECT_EQ(result.stats.directories_visited, 1);
     
     bool found_file1 = false;
     bool found_file2 = false;
-    for (const auto& r : results) {
+    for (const auto& r : result.entries) {
         if (r.path.filename() == "file1.txt" && r.size == 3) found_file1 = true;
         if (r.path.filename() == "file2.txt" && r.size == 5) found_file2 = true;
     }
@@ -75,8 +80,11 @@ TEST_F(ScannerTest, NestedStructureTraversed) {
     createFile(test_dir / "sub" / "sub2" / "deep_file.txt", "123");
 
     DirectoryScanner scanner;
-    auto results = scanner.scan(test_dir);
-    EXPECT_EQ(results.size(), 3);
+    auto result = scanner.scan(test_dir);
+    EXPECT_EQ(result.entries.size(), 3);
+    EXPECT_EQ(result.stats.files_visited, 3);
+    EXPECT_EQ(result.stats.bytes_visited, 9);
+    EXPECT_EQ(result.stats.directories_visited, 3); // root, sub, sub2
 }
 
 // 4. Symlink skipped
@@ -91,13 +99,15 @@ TEST_F(ScannerTest, SymlinkIsSkippedAndRecorded) {
     }
 
     DirectoryScanner scanner;
-    auto results = scanner.scan(test_dir);
+    auto result = scanner.scan(test_dir);
     
-    EXPECT_EQ(results.size(), 1);
-    EXPECT_EQ(results[0].path.filename(), "real_file.txt");
+    EXPECT_EQ(result.entries.size(), 1);
+    EXPECT_EQ(result.entries[0].path.filename(), "real_file.txt");
+    EXPECT_EQ(result.stats.files_visited, 1);
+    EXPECT_EQ(result.stats.items_skipped, 1);
 
     bool logged = false;
-    for (const auto& sp : scanner.getSkippedPaths()) {
+    for (const auto& sp : result.skipped_paths) {
         if (sp.find("Skipped symlink") != std::string::npos && sp.find(link_path.string()) != std::string::npos) {
             logged = true;
             break;
@@ -111,8 +121,10 @@ TEST_F(ScannerTest, ZeroByteFilesHandled) {
     createFile(test_dir / "empty.dat", "");
 
     DirectoryScanner scanner;
-    auto results = scanner.scan(test_dir);
+    auto result = scanner.scan(test_dir);
     
-    EXPECT_EQ(results.size(), 1);
-    EXPECT_EQ(results[0].size, 0);
+    EXPECT_EQ(result.entries.size(), 1);
+    EXPECT_EQ(result.entries[0].size, 0);
+    EXPECT_EQ(result.stats.files_visited, 1);
+    EXPECT_EQ(result.stats.bytes_visited, 0);
 }
