@@ -12,8 +12,8 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(dupcleaner_tests test_placeholder.cpp test_file_entry.cpp test_scanner.cpp test_duplicate_finder.cpp test_hasher.cpp test_cli_args.cpp test_deleter.cpp test_image_loader.cpp test_perceptual_hash.cpp test_interactive_review.cpp ${CMAKE_SOURCE_DIR}/src/cli/interactive_review.cpp)
-target_include_directories(dupcleaner_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/cli ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/third_party)
+add_executable(dupcleaner_tests test_placeholder.cpp test_file_entry.cpp test_scanner.cpp test_duplicate_finder.cpp test_hasher.cpp test_cli_args.cpp test_deleter.cpp test_image_loader.cpp test_perceptual_hash.cpp test_interactive_review.cpp ${CMAKE_SOURCE_DIR}/src/cli/interactive_review.cpp test_gui_formatting.cpp ${CMAKE_SOURCE_DIR}/src/gui/formatting.cpp)
+target_include_directories(dupcleaner_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/cli ${CMAKE_SOURCE_DIR}/src/core ${CMAKE_SOURCE_DIR}/src/gui ${CMAKE_SOURCE_DIR}/third_party)
 target_link_libraries(dupcleaner_tests PRIVATE dupcleaner_core GTest::gtest_main CLI11::CLI11)
 
 include(GoogleTest)

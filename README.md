@@ -19,7 +19,16 @@ dupcleaner scans a drive, finds exact and near-duplicate files/photos, and repor
 
 ## Example Usage
 
-### Finding Near-Duplicate Images
+### GUI Application
+For an interactive, visual experience, launch the GUI:
+```bash
+dupcleaner_gui
+```
+Type or paste a directory path into the text field and click **Scan**. The scan runs on a background thread. Once completed, you'll see a scrollable list of exact and near-duplicate groups along with the total reclaimable space.
+
+> **Note:** Screenshot TODO once UI is stable.
+
+### Command Line Interface - Finding Near-Duplicate Images
 In addition to exact duplicates, you can scan for slightly altered images (e.g. resized, slightly cropped, compressed) using perceptual hashing:
 ```bash
 $ dupcleaner_cli scan ./my_photos --include-near-duplicates --similarity-threshold 10
