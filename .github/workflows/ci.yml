@@ -41,9 +41,11 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Dependencies
+      env:
+        DEBIAN_FRONTEND: noninteractive
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake clang libglfw3-dev libgles2-mesa-dev
+        sudo apt-get install -y clang
         
     - name: Configure CMake with Sanitizers
       env:
