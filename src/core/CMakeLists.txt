@@ -25,10 +25,11 @@ if(NOT TARGET xxhash)
 endif()
 
 # Core library target
-add_library(dupcleaner_core STATIC scanner.cpp duplicate_finder.cpp hasher.cpp deleter.cpp)
+add_library(dupcleaner_core STATIC scanner.cpp duplicate_finder.cpp hasher.cpp deleter.cpp image_loader.cpp)
 target_include_directories(dupcleaner_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party>
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(dupcleaner_core PUBLIC xxHash::xxhash nlohmann_json::nlohmann_json)
