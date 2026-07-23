@@ -9,7 +9,8 @@ TEST(CliArgsTest, MissingPathFails) {
     CliOptions opts;
     setup_cli(app, opts);
     
-    EXPECT_THROW(app.parse("scan"), CLI::ParseError);
+    const char* argv[] = {"dupcleaner", "scan"};
+    EXPECT_THROW(app.parse(sizeof(argv)/sizeof(argv[0]), argv), CLI::ParseError);
 }
 
 TEST(CliArgsTest, MissingScanSubcommandFails) {
@@ -17,7 +18,8 @@ TEST(CliArgsTest, MissingScanSubcommandFails) {
     CliOptions opts;
     setup_cli(app, opts);
     
-    EXPECT_THROW(app.parse("/my/path"), CLI::ParseError);
+    const char* argv[] = {"dupcleaner", "my_path"};
+    EXPECT_THROW(app.parse(sizeof(argv)/sizeof(argv[0]), argv), CLI::ParseError);
 }
 
 TEST(CliArgsTest, MinSizeFiltersCorrectly) {
@@ -25,10 +27,11 @@ TEST(CliArgsTest, MinSizeFiltersCorrectly) {
     CliOptions opts;
     setup_cli(app, opts);
     
-    app.parse("scan /my/path --min-size 1024");
+    const char* argv[] = {"dupcleaner", "scan", "my_path", "--min-size", "1024"};
+    app.parse(sizeof(argv)/sizeof(argv[0]), argv);
     
     EXPECT_TRUE(opts.has_scan_command);
-    EXPECT_EQ(opts.path, "/my/path");
+    EXPECT_EQ(opts.path, "my_path");
     EXPECT_EQ(opts.min_size, 1024);
 }
 
@@ -37,10 +40,11 @@ TEST(CliArgsTest, JsonFlagRecognized) {
     CliOptions opts;
     setup_cli(app, opts);
     
-    app.parse("scan /my/path --json");
+    const char* argv[] = {"dupcleaner", "scan", "my_path", "--json"};
+    app.parse(sizeof(argv)/sizeof(argv[0]), argv);
     
     EXPECT_TRUE(opts.has_scan_command);
-    EXPECT_EQ(opts.path, "/my/path");
+    EXPECT_EQ(opts.path, "my_path");
     EXPECT_TRUE(opts.json_output);
     EXPECT_FALSE(opts.verbose);
 }
@@ -50,7 +54,8 @@ TEST(CliArgsTest, VerboseFlagRecognized) {
     CliOptions opts;
     setup_cli(app, opts);
     
-    app.parse("scan /my/path --verbose");
+    const char* argv[] = {"dupcleaner", "scan", "my_path", "--verbose"};
+    app.parse(sizeof(argv)/sizeof(argv[0]), argv);
     
     EXPECT_TRUE(opts.has_scan_command);
     EXPECT_TRUE(opts.verbose);

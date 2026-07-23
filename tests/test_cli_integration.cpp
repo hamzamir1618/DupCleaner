@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
