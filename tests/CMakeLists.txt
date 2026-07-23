@@ -18,3 +18,14 @@ target_link_libraries(dupcleaner_tests PRIVATE dupcleaner_core GTest::gtest_main
 
 include(GoogleTest)
 gtest_discover_tests(dupcleaner_tests)
+
+# CLI Integration Tests
+add_executable(dupcleaner_cli_integration test_cli_integration.cpp)
+target_include_directories(dupcleaner_cli_integration PRIVATE ${CMAKE_SOURCE_DIR}/src/cli)
+target_link_libraries(dupcleaner_cli_integration PRIVATE GTest::gtest_main nlohmann_json::nlohmann_json)
+
+add_dependencies(dupcleaner_cli_integration dupcleaner_cli)
+
+gtest_discover_tests(dupcleaner_cli_integration
+    PROPERTIES ENVIRONMENT "DUPCLEANER_CLI_EXE=$<TARGET_FILE:dupcleaner_cli>"
+)
