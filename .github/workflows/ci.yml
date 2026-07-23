@@ -53,6 +53,7 @@ jobs:
         cmake -S . -B build 
         -DCMAKE_BUILD_TYPE=Debug 
         -DDUPCLEANER_BUILD_TESTS=ON 
+        -DDUPCLEANER_BUILD_GUI=OFF
         -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" 
         -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" 
         -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
