@@ -18,16 +18,10 @@ dupcleaner scans a drive, finds exact and near-duplicate files/photos, and repor
 - [ ] CLI frontend
 
 ## Example Usage
+
+### Human-Readable Output
 ```bash
-$ dupcleaner_cli --path ./my_photos
-Scanning directory: C:\my_photos...
-
---- Scan Complete ---
-Total files visited: 1355
-Total bytes visited: 180524469 bytes
-
-Finding exact duplicates...
-
+$ dupcleaner_cli scan ./my_photos --min-size 1024
 Found 1 exact duplicate groups:
 
 Group 1 (Size: 1048576 bytes, Wasted: 1048576 bytes):
@@ -35,6 +29,32 @@ Group 1 (Size: 1048576 bytes, Wasted: 1048576 bytes):
   - C:\my_photos\backup\vacation_copy.jpg
 
 Total wasted space: 1048576 bytes.
+```
+
+### JSON Output
+For programmatic integration, you can output the report as JSON:
+```bash
+$ dupcleaner_cli scan ./my_photos --json
+{
+  "groups": [
+    {
+      "files": [
+        "C:\\my_photos\\vacation.jpg",
+        "C:\\my_photos\\backup\\vacation_copy.jpg"
+      ],
+      "size_bytes": 1048576,
+      "wasted_bytes": 1048576
+    }
+  ],
+  "scan_stats": {
+    "bytes_visited": 180524469,
+    "directories_visited": 596,
+    "duration_ms": 192,
+    "files_visited": 1355,
+    "items_skipped": 0
+  },
+  "total_wasted_bytes": 1048576
+}
 ```
 ## Dependencies
 
