@@ -6,8 +6,10 @@
 
 dupcleaner scans a drive, finds exact and near-duplicate files/photos, and reports reclaimable space before deleting anything.
 
+## Current Capabilities
+- [x] Scans directory trees recursively and reports file counts and scan statistics.
+
 ## Planned Features
-- [ ] Scan directory trees
 - [ ] Detect exact duplicates via hashing
 - [ ] Detect near-duplicate photos (perceptual hashing)
 - [ ] Report reclaimable space
