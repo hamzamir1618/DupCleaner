@@ -24,9 +24,16 @@ For an interactive, visual experience, launch the GUI:
 ```bash
 dupcleaner_gui
 ```
-Type or paste a directory path into the text field and click **Scan**. The scan runs on a background thread. Once completed, you'll see a scrollable list of exact and near-duplicate groups along with the total reclaimable space.
+Type or paste a directory path into the text field and click **Scan**. The scan runs on a background thread. Once completed, you'll see a scrollable list of exact and near-duplicate groups along with the total reclaimable space. 
+
+You can interactively review the groups (with auto-generated visual thumbnails for images) and adjust the pre-selected files via checkboxes. Clicking **Clean Selected** safely moves the checked files to a `.dupcleaner_trash` directory within the target path, and an **Undo Last Cleanup** button is available if you change your mind.
 
 > **Note:** Screenshot TODO once UI is stable.
+
+#### Known Limitations
+- No native file picker dialog (you must type or paste the target directory path).
+- No specific "Drive Selection" UI overview.
+- Single-threaded scan cancellation is not yet supported (you must wait for a scan to finish before starting a new one).
 
 ### Command Line Interface - Finding Near-Duplicate Images
 In addition to exact duplicates, you can scan for slightly altered images (e.g. resized, slightly cropped, compressed) using perceptual hashing:

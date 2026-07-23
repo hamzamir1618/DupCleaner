@@ -26,6 +26,7 @@ add_executable(dupcleaner_gui
     formatting.cpp
     thumbnail_logic.cpp
     thumbnail_cache.cpp
+    selection_logic.cpp
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
