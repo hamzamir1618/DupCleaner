@@ -82,7 +82,7 @@ jobs:
         sudo apt-get install -y clang-tidy cppcheck
 
     - name: Configure CMake
-      run: cmake -S . -B build -DDUPCLEANER_BUILD_TESTS=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      run: cmake -S . -B build -DDUPCLEANER_BUILD_TESTS=OFF -DDUPCLEANER_BUILD_GUI=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
     - name: Run clang-tidy
       run: |
