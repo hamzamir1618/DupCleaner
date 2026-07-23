@@ -8,15 +8,34 @@ dupcleaner scans a drive, finds exact and near-duplicate files/photos, and repor
 
 ## Current Capabilities
 - [x] Scans directory trees recursively and reports file counts and scan statistics.
+- [x] Detect exact duplicates via hashing and safe byte-for-byte verification.
 
 ## Planned Features
-- [ ] Detect exact duplicates via hashing
 - [ ] Detect near-duplicate photos (perceptual hashing)
 - [ ] Report reclaimable space
 - [ ] Safe deletion capabilities
 - [ ] GUI frontend
 - [ ] CLI frontend
 
+## Example Usage
+```bash
+$ dupcleaner_cli --path ./my_photos
+Scanning directory: C:\my_photos...
+
+--- Scan Complete ---
+Total files visited: 1355
+Total bytes visited: 180524469 bytes
+
+Finding exact duplicates...
+
+Found 1 exact duplicate groups:
+
+Group 1 (Size: 1048576 bytes, Wasted: 1048576 bytes):
+  - C:\my_photos\vacation.jpg
+  - C:\my_photos\backup\vacation_copy.jpg
+
+Total wasted space: 1048576 bytes.
+```
 ## Dependencies
 
 This project relies on the following libraries:

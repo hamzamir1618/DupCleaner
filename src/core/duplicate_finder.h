@@ -17,6 +17,9 @@ public:
 
     // Compares two files byte-for-byte in chunks. Returns true if they are identical.
     static bool filesAreIdentical(const std::filesystem::path& a, const std::filesystem::path& b);
+
+    // Finds and returns all groups of exact duplicates using size, hashing, and byte comparison.
+    static std::vector<std::vector<FileEntry>> findExactDuplicates(const std::vector<FileEntry>& entries);
 };
 
 } // namespace dupcleaner
