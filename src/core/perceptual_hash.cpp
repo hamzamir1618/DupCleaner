@@ -28,7 +28,7 @@ uint64_t PerceptualHash::computeDHash(const ImageData& img) {
             
             for (int sy = start_y; sy < end_y; ++sy) {
                 for (int sx = start_x; sx < end_x; ++sx) {
-                    int idx = (sy * img.width + sx) * img.channels;
+                    size_t idx = (static_cast<size_t>(sy) * static_cast<size_t>(img.width) + static_cast<size_t>(sx)) * static_cast<size_t>(img.channels);
                     unsigned char r = img.data[idx];
                     unsigned char g = (img.channels >= 3) ? img.data[idx + 1] : r;
                     unsigned char b = (img.channels >= 3) ? img.data[idx + 2] : r;

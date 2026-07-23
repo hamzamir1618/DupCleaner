@@ -35,6 +35,37 @@ jobs:
     - name: Test
       run: ctest --test-dir build -C Release --output-on-failure -LE performance
 
+  sanitizer-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake clang libglfw3-dev libgles2-mesa-dev
+        
+    - name: Configure CMake with Sanitizers
+      env:
+        CC: clang
+        CXX: clang++
+      run: >
+        cmake -S . -B build 
+        -DCMAKE_BUILD_TYPE=Debug 
+        -DDUPCLEANER_BUILD_TESTS=ON 
+        -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" 
+        -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" 
+        -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+    - name: Build
+      run: cmake --build build --config Debug
+
+    - name: Run Tests with Sanitizers
+      env:
+        ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1"
+        UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+      run: ctest --test-dir build -C Debug --output-on-failure -LE performance
+
   build-gui:
     runs-on: ${{ matrix.os }}
     strategy:
