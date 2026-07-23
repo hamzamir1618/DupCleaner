@@ -124,9 +124,9 @@ This project relies on the following libraries:
 
 ### Prerequisites
 - **Windows / macOS**: Built-in graphics libraries are sufficient.
-- **Linux (Ubuntu/Debian)**: Requires OpenGL and X11 development headers.
+- **Linux (Ubuntu/Debian)**: Requires OpenGL, X11, and Wayland development headers.
   ```bash
-  sudo apt-get install libgl1-mesa-dev xorg-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+  sudo apt-get install libgl1-mesa-dev xorg-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libwayland-dev libxkbcommon-dev wayland-protocols
   ```
 
 ### Building
