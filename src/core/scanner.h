@@ -30,11 +30,12 @@ struct ScannerOptions {
 class DirectoryScanner {
 public:
     struct ProgressTracker {
-        std::atomic<uintmax_t>* files_visited{nullptr};
-        std::atomic<uintmax_t>* bytes_visited{nullptr};
+        std::atomic<uintmax_t>* files_visited;
+        std::atomic<uintmax_t>* bytes_visited;
+        ProgressTracker() : files_visited(nullptr), bytes_visited(nullptr) {}
     };
 
-    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = ScannerOptions{}, std::atomic<bool>* cancelFlag = nullptr, const ProgressTracker& progress = ProgressTracker{});
+    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = ScannerOptions{}, std::atomic<bool>* cancelFlag = nullptr, const ProgressTracker& progress = ProgressTracker());
 };
 
 } // namespace dupcleaner
