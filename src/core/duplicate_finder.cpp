@@ -85,7 +85,7 @@ DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<Fil
     auto& pool = getGlobalThreadPool();
     
     struct HashResult {
-        uintmax_t size;
+        uintmax_t size{0};
         std::unordered_map<uint64_t, std::vector<FileEntry>> hash_buckets;
     };
     std::vector<std::future<HashResult>> futures;
@@ -107,7 +107,7 @@ DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<Fil
                 try {
                     uint64_t hash = FileHasher::fingerprint(entry.path);
                     res.hash_buckets[hash].push_back(entry);
-                } catch (const DupCleanerIOException&) {
+                } catch (const DupCleanerIOException&) { // NOLINT(bugprone-empty-catch)
                     // skip
                 }
                 if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
@@ -143,6 +143,7 @@ DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_
     if (progress.current_items) progress.current_items->store(0, std::memory_order_relaxed);
     if (progress.current_bytes) progress.current_bytes->store(0, std::memory_order_relaxed);
 
+    futures.reserve(hash_buckets.size());
     for (const auto& [size, hb] : hash_buckets) {
         futures.push_back(pool.enqueue([hb, &progress]() {
             std::vector<std::vector<FileEntry>> local_results;

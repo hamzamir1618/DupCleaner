@@ -41,7 +41,7 @@ T run_with_progress(
                 auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(now - start_time).count();
                 if (sec > 0.5) {
                     uintmax_t cur_b = current_bytes->load(std::memory_order_relaxed);
-                    double mbps = (cur_b / 1024.0 / 1024.0) / sec;
+                    double mbps = (static_cast<double>(cur_b) / 1024.0 / 1024.0) / sec;
                     std::cerr << " (" << std::fixed << std::setprecision(1) << mbps << " MB/s)";
                 }
             }
