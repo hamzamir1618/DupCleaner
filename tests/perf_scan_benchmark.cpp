@@ -14,8 +14,8 @@ TEST(PerfScanBenchmark, LargeTreeScan) {
     config.output_dir = std::filesystem::temp_directory_path() / "dupcleaner_perf_tree";
     config.num_files = 100000;
     config.duplicate_ratio = 0.2;
-    config.min_file_size = 1024;
-    config.max_file_size = 64 * 1024; // 64KB to limit disk usage while keeping file count high
+    config.min_file_size = 0;
+    config.max_file_size = 2048; // 2KB max to limit total disk write to ~100MB, preventing OS cache/RAM exhaustion on laptops while keeping file count high
 
     std::cout << "[Perf] Generating synthetic tree with " << config.num_files << " files...\n";
     auto start_gen = std::chrono::high_resolution_clock::now();

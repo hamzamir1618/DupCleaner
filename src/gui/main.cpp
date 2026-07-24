@@ -3,6 +3,7 @@
 #include "imgui_impl_opengl3.h"
 #include "app.h"
 #include "theme.h"
+#include "../../third_party/IconsFontAwesome6.h"
 #include <stdio.h>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -48,6 +49,39 @@ int main(int, char**) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    
+    ImFontConfig font_cfg;
+    font_cfg.OversampleH = 2;
+    font_cfg.OversampleV = 2;
+    
+    ImFontConfig icons_config;
+    icons_config.MergeMode = true;
+    icons_config.PixelSnapH = true;
+    icons_config.GlyphMinAdvanceX = 14.0f;
+    static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
+
+    // Resolve path relative to this source file
+    std::string base_dir = std::string(__FILE__);
+    size_t last_slash = base_dir.find_last_of("\\/");
+    base_dir = base_dir.substr(0, last_slash);
+    std::string roboto_path = base_dir + "/../../third_party/Roboto-Regular.ttf";
+    std::string fa_path = base_dir + "/../../third_party/fa-solid-900.ttf";
+
+    printf("Loading fonts from:\n");
+    printf("Roboto: %s\n", roboto_path.c_str());
+    printf("FA: %s\n", fa_path.c_str());
+    fflush(stdout);
+
+    dupcleaner::gui::font_regular = io.Fonts->AddFontFromFileTTF(roboto_path.c_str(), 16.0f, &font_cfg);
+    io.Fonts->AddFontFromFileTTF(fa_path.c_str(), 14.0f, &icons_config, icons_ranges);
+
+    dupcleaner::gui::font_headline = io.Fonts->AddFontFromFileTTF(roboto_path.c_str(), 24.0f, &font_cfg);
+    icons_config.GlyphMinAdvanceX = 22.0f;
+    io.Fonts->AddFontFromFileTTF(fa_path.c_str(), 22.0f, &icons_config, icons_ranges);
+
+    dupcleaner::gui::font_small = io.Fonts->AddFontFromFileTTF(roboto_path.c_str(), 13.0f, &font_cfg);
+    icons_config.GlyphMinAdvanceX = 12.0f;
+    io.Fonts->AddFontFromFileTTF(fa_path.c_str(), 12.0f, &icons_config, icons_ranges);
     
     dupcleaner::gui::ApplyTheme();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls

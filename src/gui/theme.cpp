@@ -3,6 +3,10 @@
 
 namespace dupcleaner::gui {
 
+ImFont* font_regular = nullptr;
+ImFont* font_headline = nullptr;
+ImFont* font_small = nullptr;
+
 void ApplyTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
     
@@ -63,5 +67,24 @@ void ApplyTheme() {
     colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
     colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.03f);
 }
+
+void PushPrimaryButton() {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.50f, 0.85f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.55f, 0.90f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.45f, 0.80f, 1.00f));
+}
+void PopPrimaryButton() { ImGui::PopStyleColor(3); }
+
+void PushDangerButton() {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.85f, 0.25f, 0.25f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.95f, 0.35f, 0.35f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.75f, 0.15f, 0.15f, 1.00f));
+}
+void PopDangerButton() { ImGui::PopStyleColor(3); }
+
+void PushSuccessText() {
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.85f, 0.4f, 1.0f));
+}
+void PopSuccessText() { ImGui::PopStyleColor(); }
 
 } // namespace dupcleaner::gui

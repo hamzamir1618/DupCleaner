@@ -430,3 +430,89 @@ TEST_F(NearDuplicateFinderTest, InvalidImagesSkipped) {
     ASSERT_EQ(result.skipped_paths.size(), 1);
     EXPECT_EQ(result.skipped_paths[0].filename().string(), "bad.jpg");
 }
+
+// --- Progress Callback Tests ---
+
+TEST_F(DuplicateFinderIOTest, ProgressCallbackIsInvokedInCorrectOrder) {
+    createFile(test_dir / "file1.dat", "DATA");
+    createFile(test_dir / "file2.dat", "DATA");
+    createFile(test_dir / "file3.dat", "DIFF");
+    
+    std::vector<FileEntry> entries;
+    for (const auto& name : {"file1.dat", "file2.dat", "file3.dat"}) {
+        FileEntry e;
+        e.path = test_dir / name;
+        e.size = fs::file_size(e.path);
+        entries.push_back(e);
+    }
+    
+    std::vector<PipelinePhase> observed_phases;
+    size_t last_current = 0;
+    size_t last_total = 0;
+    PipelinePhase current_phase = PipelinePhase::Scanning; // dummy initial
+    bool first_call = true;
+    
+    ProgressCallback cb = [&](PipelinePhase phase, size_t cur, size_t total) {
+        if (first_call || phase != current_phase) {
+            if (!first_call) {
+                // Ensure the last call of the previous phase reached 100%
+                EXPECT_EQ(last_current, last_total) << "Phase did not finish at 100%";
+            }
+            observed_phases.push_back(phase);
+            current_phase = phase;
+            first_call = false;
+        }
+        last_current = cur;
+        last_total = total;
+    };
+    
+    auto results = DuplicateFinder::findExactDuplicates(entries, {}, cb);
+    
+    // Check that we got Done and it was 100%
+    EXPECT_EQ(last_current, 1);
+    EXPECT_EQ(last_total, 1);
+    EXPECT_EQ(current_phase, PipelinePhase::Done);
+    
+    // Check the phase order
+    ASSERT_GE(observed_phases.size(), 4);
+    EXPECT_EQ(observed_phases[0], PipelinePhase::GroupingBySize);
+    EXPECT_EQ(observed_phases[1], PipelinePhase::Fingerprinting);
+    EXPECT_EQ(observed_phases[2], PipelinePhase::Verifying);
+    EXPECT_EQ(observed_phases[3], PipelinePhase::Done);
+}
+
+TEST_F(NearDuplicateFinderTest, ProgressCallbackForNearDuplicates) {
+    std::vector<FileEntry> entries;
+    entries.push_back(create_png("img1.jpg", 100, 100, true));
+    entries.push_back(create_png("img2.jpg", 100, 100, true));
+    
+    std::vector<PipelinePhase> observed_phases;
+    size_t last_current = 0;
+    size_t last_total = 0;
+    PipelinePhase current_phase = PipelinePhase::Scanning;
+    bool first_call = true;
+    
+    ProgressCallback cb = [&](PipelinePhase phase, size_t cur, size_t total) {
+        if (first_call || phase != current_phase) {
+            if (!first_call) {
+                EXPECT_EQ(last_current, last_total) << "Phase did not finish at 100%";
+            }
+            observed_phases.push_back(phase);
+            current_phase = phase;
+            first_call = false;
+        }
+        last_current = cur;
+        last_total = total;
+    };
+    
+    auto result = DuplicateFinder::findNearDuplicateImages(entries, 5, {}, cb);
+    
+    EXPECT_EQ(last_current, 1);
+    EXPECT_EQ(last_total, 1);
+    EXPECT_EQ(current_phase, PipelinePhase::Done);
+    
+    ASSERT_GE(observed_phases.size(), 3);
+    EXPECT_EQ(observed_phases[0], PipelinePhase::ComputingPerceptualHashes);
+    EXPECT_EQ(observed_phases[1], PipelinePhase::ClusteringNearDuplicates);
+    EXPECT_EQ(observed_phases[2], PipelinePhase::Done);
+}

@@ -81,8 +81,9 @@ bool DuplicateFinder::filesAreIdentical(const std::filesystem::path& a, const st
 }
 
 std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>> 
-DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<FileEntry>>& size_buckets, const PhaseProgressTracker& progress) {
+DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<FileEntry>>& size_buckets, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
     auto& pool = getGlobalThreadPool();
+    std::mutex cb_mutex;
     
     struct HashResult {
         uintmax_t size{0};
@@ -99,8 +100,10 @@ DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<Fil
     if (progress.current_items) progress.current_items->store(0, std::memory_order_relaxed);
     if (progress.current_bytes) progress.current_bytes->store(0, std::memory_order_relaxed);
 
+    std::atomic<size_t> local_cur{0};
+
     for (const auto& [size, size_group] : size_buckets) {
-        futures.push_back(pool.enqueue([size, size_group, &progress]() {
+        futures.push_back(pool.enqueue([size, size_group, &progress, onProgress, &cb_mutex, total_to_hash, &local_cur]() {
             HashResult res;
             res.size = size;
             for (const auto& entry : size_group) {
@@ -110,8 +113,14 @@ DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<Fil
                 } catch (const DupCleanerIOException&) { // NOLINT(bugprone-empty-catch)
                     // skip
                 }
+                size_t cur = local_cur.fetch_add(1, std::memory_order_relaxed) + 1;
                 if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
                 if (progress.current_bytes) progress.current_bytes->fetch_add(entry.size, std::memory_order_relaxed);
+                
+                if (onProgress && cur > 0 && (cur % 100 == 0 || cur == total_to_hash)) {
+                    std::lock_guard<std::mutex> lock(cb_mutex);
+                    onProgress(PipelinePhase::Fingerprinting, cur, total_to_hash);
+                }
             }
             return res;
         }));
@@ -126,8 +135,9 @@ DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<Fil
 }
 
 std::vector<std::vector<FileEntry>> 
-DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>>& hash_buckets, const PhaseProgressTracker& progress) {
+DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>>& hash_buckets, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
     auto& pool = getGlobalThreadPool();
+    std::mutex cb_mutex;
     std::vector<std::future<std::vector<std::vector<FileEntry>>>> futures;
     
     size_t total_to_verify = 0;
@@ -143,9 +153,11 @@ DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_
     if (progress.current_items) progress.current_items->store(0, std::memory_order_relaxed);
     if (progress.current_bytes) progress.current_bytes->store(0, std::memory_order_relaxed);
 
+    std::atomic<size_t> local_cur{0};
+
     futures.reserve(hash_buckets.size());
     for (const auto& [size, hb] : hash_buckets) {
-        futures.push_back(pool.enqueue([hb, &progress]() {
+        futures.push_back(pool.enqueue([hb, &progress, onProgress, &cb_mutex, total_to_verify, &local_cur]() {
             std::vector<std::vector<FileEntry>> local_results;
             for (const auto& [hash, hash_group] : hb) {
                 if (hash_group.size() <= 1) continue;
@@ -163,8 +175,14 @@ DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_
                     if (!added) {
                         confirmed_groups.push_back({entry});
                     }
+                    size_t cur = local_cur.fetch_add(1, std::memory_order_relaxed) + 1;
                     if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
                     if (progress.current_bytes) progress.current_bytes->fetch_add(entry.size, std::memory_order_relaxed);
+                    
+                    if (onProgress && cur > 0 && (cur % 100 == 0 || cur == total_to_verify)) {
+                        std::lock_guard<std::mutex> lock(cb_mutex);
+                        onProgress(PipelinePhase::Verifying, cur, total_to_verify);
+                    }
                 }
 
                 for (auto& confirmed_group : confirmed_groups) {
@@ -196,16 +214,21 @@ DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_
     return results;
 }
 
-std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries, const PhaseProgressTracker& progress) {
+std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
+    if (onProgress) onProgress(PipelinePhase::GroupingBySize, 0, entries.size());
     auto size_buckets = groupBySize(entries);
+    if (onProgress) onProgress(PipelinePhase::GroupingBySize, entries.size(), entries.size());
+    
     filterUniqueSizes(size_buckets);
     
-    // In the convenience method, we don't have separate progress trackers for each phase, so we just run them.
-    auto hash_buckets = fingerprintCandidates(size_buckets);
-    return verifyExactDuplicates(hash_buckets);
+    auto hash_buckets = fingerprintCandidates(size_buckets, progress, onProgress);
+    auto results = verifyExactDuplicates(hash_buckets, progress, onProgress);
+    
+    if (onProgress) onProgress(PipelinePhase::Done, 1, 1);
+    return results;
 }
 
-DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold, const PhaseProgressTracker& progress) {
+DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
     NearDuplicateResult result;
     std::vector<std::pair<FileEntry, uint64_t>> image_hashes;
     
@@ -241,6 +264,8 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
     for (size_t i = 0; i < futures.size(); ++i) {
         auto res = futures[i].get();
         if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
+        if (onProgress) onProgress(PipelinePhase::ComputingPerceptualHashes, i + 1, futures.size());
+        
         if (res.success) {
             image_hashes.push_back({res.entry, res.hash});
         } else {
@@ -249,8 +274,11 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
     }
 
     if (image_hashes.empty()) {
+        if (onProgress) onProgress(PipelinePhase::Done, 1, 1);
         return result;
     }
+
+    if (onProgress) onProgress(PipelinePhase::ClusteringNearDuplicates, 0, image_hashes.size());
 
     // Disjoint Set (Union-Find)
     std::vector<size_t> parent(image_hashes.size());
@@ -276,6 +304,8 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
             }
         }
     }
+    
+    if (onProgress) onProgress(PipelinePhase::ClusteringNearDuplicates, image_hashes.size(), image_hashes.size());
 
     std::unordered_map<size_t, std::vector<std::pair<FileEntry, uint64_t>>> clusters;
     for (size_t i = 0; i < image_hashes.size(); ++i) {
@@ -302,6 +332,7 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
         return a.members[0].first.path.u8string() < b.members[0].first.path.u8string();
     });
 
+    if (onProgress) onProgress(PipelinePhase::Done, 1, 1);
     return result;
 }
 

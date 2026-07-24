@@ -37,6 +37,9 @@ public:
     // Restores the most recent batch of moved files.
     bool undoLastDeletion();
 
+    // Empties the entire trash directory permanently.
+    void emptyTrash();
+
 private:
     std::filesystem::path trash_root_;
     

@@ -28,3 +28,15 @@ Other dependencies (like xxHash, GoogleTest, CLI11, Dear ImGui, GLFW) are fetche
 - **License**: Public Domain / MIT dual license
 - **Commit Hash**: `master` (from [nothings/stb](https://github.com/nothings/stb))
 - **Description**: Image writing library for generating dynamic unit test payloads.
+
+## Typography and Icons
+
+### Roboto
+- **Source URL**: https://github.com/google/fonts/tree/main/apache/roboto
+- **License**: Apache 2.0
+- **Description**: Standard clean UI font used for the interface.
+
+### FontAwesome 6 & IconFontCppHeaders
+- **Source URL**: https://github.com/FortAwesome/Font-Awesome and https://github.com/juliettef/IconFontCppHeaders
+- **License**: FontAwesome Free License (SIL OFL 1.1 for fonts), MIT for Headers
+- **Description**: Used to provide vector icons in the ImGui interface.

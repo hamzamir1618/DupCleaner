@@ -14,7 +14,7 @@ ScanController::~ScanController() {
     }
 }
 
-void ScanController::startScan(const std::string& path, const ScannerOptions& options) {
+void ScanController::startScan(const std::string& path, const ScannerOptions& options, bool enable_near_duplicates, int similarity_threshold) {
     ScanState expected = ScanState::Idle;
     // Allow restarting a scan if it's already Done or Failed
     if (current_state.load() == ScanState::Scanning) {
@@ -30,6 +30,9 @@ void ScanController::startScan(const std::string& path, const ScannerOptions& op
     cancel_flag.store(false);
     current_files_scanned.store(0);
     current_bytes_scanned.store(0);
+    current_phase.store(PipelinePhase::Scanning);
+    current_phase_progress.store(0);
+    current_phase_total.store(0);
 
     {
         std::lock_guard<std::mutex> lock(results_mutex);
@@ -39,6 +42,9 @@ void ScanController::startScan(const std::string& path, const ScannerOptions& op
         near_duplicates.skipped_paths.clear();
         exact_wasted_space = 0;
     }
+
+    this->enable_near_duplicates.store(enable_near_duplicates);
+    this->similarity_threshold.store(similarity_threshold);
 
     worker = std::thread(&ScanController::runScan, this, path, options);
 }
@@ -79,6 +85,18 @@ uintmax_t ScanController::getBytesScanned() const {
     return current_bytes_scanned.load(std::memory_order_relaxed);
 }
 
+PipelinePhase ScanController::getCurrentPhase() const {
+    return current_phase.load(std::memory_order_relaxed);
+}
+
+uintmax_t ScanController::getPhaseProgress() const {
+    return current_phase_progress.load(std::memory_order_relaxed);
+}
+
+uintmax_t ScanController::getPhaseTotal() const {
+    return current_phase_total.load(std::memory_order_relaxed);
+}
+
 void ScanController::runScan(std::string path, ScannerOptions options) {
     try {
         DirectoryScanner scanner;
@@ -95,8 +113,14 @@ void ScanController::runScan(std::string path, ScannerOptions options) {
             current_state.store(ScanState::Failed);
             return;
         }
+        
+        auto cb = [this](PipelinePhase phase, size_t cur, size_t total) {
+            this->current_phase.store(phase, std::memory_order_relaxed);
+            this->current_phase_progress.store(cur, std::memory_order_relaxed);
+            this->current_phase_total.store(total, std::memory_order_relaxed);
+        };
 
-        auto exact = DuplicateFinder::findExactDuplicates(result.entries);
+        auto exact = DuplicateFinder::findExactDuplicates(result.entries, {}, cb);
         
         if (cancel_flag.load(std::memory_order_relaxed)) {
             std::lock_guard<std::mutex> lock(results_mutex);
@@ -105,13 +129,17 @@ void ScanController::runScan(std::string path, ScannerOptions options) {
             return;
         }
         
-        auto near_dup = DuplicateFinder::findNearDuplicateImages(result.entries, 10);
-        
-        if (cancel_flag.load(std::memory_order_relaxed)) {
+        if (this->enable_near_duplicates.load()) {
+            auto near_dup = DuplicateFinder::findNearDuplicateImages(result.entries, this->similarity_threshold.load(), {}, cb);
+            
+            if (cancel_flag.load(std::memory_order_relaxed)) {
+                std::lock_guard<std::mutex> lock(results_mutex);
+                error_message = "Scan cancelled by user.";
+                current_state.store(ScanState::Failed);
+                return;
+            }
             std::lock_guard<std::mutex> lock(results_mutex);
-            error_message = "Scan cancelled by user.";
-            current_state.store(ScanState::Failed);
-            return;
+            near_duplicates = std::move(near_dup);
         }
 
         sortGroupsByWastedSpaceDescending(exact);
@@ -123,7 +151,6 @@ void ScanController::runScan(std::string path, ScannerOptions options) {
 
         std::lock_guard<std::mutex> lock(results_mutex);
         exact_duplicates = std::move(exact);
-        near_duplicates = std::move(near_dup);
         exact_wasted_space = total_wasted;
         
         current_state.store(ScanState::Done);

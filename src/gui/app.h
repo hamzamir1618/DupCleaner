@@ -26,7 +26,11 @@ private:
     void renderNearDuplicates();
 
     // UI State
-    char target_dir[2048] = "";
+    char target_dir[512] = "";
+    bool enable_near_duplicates = false;
+    int similarity_threshold = 10;
+    int min_size_bytes = 0;
+    int keep_strategy_idx = 0;
 
     ScanController scan_controller;
 

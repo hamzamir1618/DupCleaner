@@ -12,9 +12,9 @@
 - [x] **Near-Duplicate Image Detection:** Identifies slightly altered images (like Instagram crops or JPEG compressions) using Perceptual Hashing (dHash).
 - [x] **Reclaimable Space Reporting:** Accurately calculates exactly how many bytes you'll save before you delete anything.
 - [x] **Safe Deletion:** Moves duplicates to a local `.dupcleaner_trash` directory rather than permanently destroying them immediately.
-- [x] **Undo Capabilities:** Made a mistake? Instantly reverse the last cleanup operation to restore files to their exact original locations.
+- [x] **Undo Capabilities & Trash Management:** Instantly reverse the last cleanup operation, or permanently empty the trash bin to free up disk space.
 - [x] **CLI Frontend:** Scriptable interface with JSON output, dry-runs, and interactive review modes.
-- [x] **GUI Frontend:** A beautiful, dark-themed `Dear ImGui` desktop application featuring visual image thumbnails and point-and-click cleanup.
+- [x] **GUI Frontend:** A modern, beautiful `Dear ImGui` desktop application featuring FontAwesome iconography, a visual Grid/Card layout for image thumbnails, and point-and-click cleanup.
 - [x] **Multi-threaded Performance:** Leverages your entire CPU to parallelize disk reads and image decoding.
 
 ---
@@ -66,8 +66,9 @@ Data loss is our biggest enemy. DupCleaner implements a "Trash-by-Default" safet
 1. When you "clean" files, they are **not** permanently deleted. Instead, they are moved to a hidden directory (`.dupcleaner_trash`) located inside the folder you just scanned.
 2. An automatic manifest (`.json`) tracks the exact original absolute pathways of those files.
 3. If you realize you deleted the wrong files, you can simply run the `undo` command (or click "Undo Last Cleanup" in the GUI) to restore them perfectly.
+4. When you're completely sure, you can click **Empty Trash** to securely free up the disk space.
 
-*Note: You can bypass this safeguard and invoke irreversible deletion using the `--permanent` flag in the CLI.*
+*Note: You can intentionally bypass this safeguard and invoke irreversible deletion using the `--permanent` flag in the CLI, or by unchecking the "Move to Trash (Undoable)" toggle inside the GUI confirmation prompt.*
 
 ---
 
@@ -91,11 +92,11 @@ dupcleaner_gui
 
 ![DupCleaner GUI](docs/screenshots/gui_main.png)
 
-1. **Target Directory:** Launch `dupcleaner_gui`. At the top, click **Browse...** to select a target directory or type it manually.
+1. **Target Directory:** Launch `dupcleaner_gui`. At the top, click **Browse...** to open a native file picker or type the directory manually.
 2. **Scan:** Click **Scan**. The interface will display a live progress status bar showing the number of files and bytes scanned in real-time.
-3. **Review:** Once completed, results appear in a cohesive, sortable data table format under "Exact Duplicates" and "Near Duplicates" tabs. You can sort by File Path or Size by clicking the column headers. Inline thumbnails are displayed for image files. The total space you are about to save is displayed dynamically at the bottom.
-4. **Cleanup:** Check or uncheck the "Keep" column to retain or discard files. Click **Clean Selected** on the bottom action bar to move the selected files to the trash.
-5. **Undo:** Use the **Undo Last Cleanup** button on the bottom action bar to revert your last bulk deletion.
+3. **Review:** Once completed, results elegantly populate into a wrapping **Grid Layout** under "Exact Duplicates" and "Near Duplicates" tabs. Inline thumbnails are displayed for image files. The total space you are about to save is displayed dynamically at the bottom.
+4. **Cleanup:** Check or uncheck the checkboxes to retain or discard files. Click **Clean Selected** on the bottom action bar. A confirmation modal will appear allowing you to move them to the `.dupcleaner_trash` bin or permanently delete them.
+5. **Trash Management:** Use the **Undo Last Cleanup** button to revert your last bulk deletion, or click **Empty Trash** to permanently clear the bin.
 
 ---
 
@@ -224,7 +225,6 @@ ctest --test-dir build --output-on-failure
 ---
 
 ## Known Limitations
-- **No Native File Picker Dialog:** You must manually type or paste the target directory path into the GUI text box.
 - **No Drive Overview Dashboard:** There is no specific visualization mapping disk utilization before running a scan.
 - **Cancel Scanning:** Single-threaded scan cancellation is not yet supported. You must wait for a scan to finish before launching a new one in the GUI.
 

@@ -194,4 +194,12 @@ bool SafeDeleter::undoLastDeletion() {
     return true;
 }
 
+void SafeDeleter::emptyTrash() {
+    std::filesystem::path trashDir = trash_root_ / ".dupcleaner_trash";
+    std::error_code ec;
+    if (std::filesystem::exists(trashDir, ec)) {
+        std::filesystem::remove_all(trashDir, ec);
+    }
+}
+
 } // namespace dupcleaner

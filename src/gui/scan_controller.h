@@ -29,7 +29,7 @@ public:
     ScanController(const ScanController&) = delete;
     ScanController& operator=(const ScanController&) = delete;
 
-    void startScan(const std::string& path, const ScannerOptions& options = {});
+    void startScan(const std::string& path, const ScannerOptions& options = {}, bool enable_near_duplicates = false, int similarity_threshold = 10);
     void requestCancel();
 
     // Thread-safe accessors
@@ -47,6 +47,10 @@ public:
     uintmax_t getFilesScanned() const;
     uintmax_t getBytesScanned() const;
 
+    PipelinePhase getCurrentPhase() const;
+    uintmax_t getPhaseProgress() const;
+    uintmax_t getPhaseTotal() const;
+
 private:
     // Core scanning method run in the background thread
     void runScan(std::string path, ScannerOptions options);
@@ -54,9 +58,15 @@ private:
     std::thread worker;
     std::atomic<ScanState> current_state{ScanState::Idle};
     std::atomic<bool> cancel_flag{false};
+    std::atomic<bool> enable_near_duplicates{false};
+    std::atomic<int> similarity_threshold{10};
     
     std::atomic<uintmax_t> current_files_scanned{0};
     std::atomic<uintmax_t> current_bytes_scanned{0};
+    
+    std::atomic<PipelinePhase> current_phase{PipelinePhase::Scanning};
+    std::atomic<uintmax_t> current_phase_progress{0};
+    std::atomic<uintmax_t> current_phase_total{0};
 
     mutable std::mutex results_mutex;
     std::string error_message;
