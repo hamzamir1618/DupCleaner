@@ -20,8 +20,8 @@ uintmax_t generateTestTree(const TreeConfig& config) {
     size_t num_duplicates = static_cast<size_t>(config.num_files * config.duplicate_ratio);
     size_t num_unique = config.num_files - num_duplicates;
 
-    std::vector<std::string> unique_contents;
-    unique_contents.reserve(num_unique);
+    std::vector<std::filesystem::path> unique_paths;
+    unique_paths.reserve(num_unique);
 
     uintmax_t total_bytes = 0;
 
@@ -35,15 +35,15 @@ uintmax_t generateTestTree(const TreeConfig& config) {
         size_t size = size_dist(gen);
         std::string content;
         content.reserve(size);
-        // Fill with some pattern based on index to ensure uniqueness
         for (size_t j = 0; j < size; ++j) {
             content.push_back(static_cast<char>((i + j) % 256));
         }
 
         std::ofstream out(filepath, std::ios::binary);
         out.write(content.data(), content.size());
+        out.close();
         
-        unique_contents.push_back(std::move(content));
+        unique_paths.push_back(filepath);
         total_bytes += size;
     }
 
@@ -58,12 +58,10 @@ uintmax_t generateTestTree(const TreeConfig& config) {
         std::filesystem::path filepath = dir / ("dup_" + std::to_string(i) + ".dat");
 
         size_t src_idx = unique_index_dist(gen);
-        const std::string& content = unique_contents[src_idx];
+        std::filesystem::copy_file(unique_paths[src_idx], filepath, std::filesystem::copy_options::overwrite_existing);
 
-        std::ofstream out(filepath, std::ios::binary);
-        out.write(content.data(), content.size());
-
-        total_bytes += content.size();
+        std::error_code ec;
+        total_bytes += std::filesystem::file_size(filepath, ec);
     }
 
     return total_bytes;

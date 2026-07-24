@@ -53,6 +53,9 @@ private:
     bool stop;
 };
 
+// Initializes the global thread pool size (must be called before getGlobalThreadPool).
+void initGlobalThreadPool(size_t threads);
+
 // Returns a global static ThreadPool for reuse across the core library.
 ThreadPool& getGlobalThreadPool();
 

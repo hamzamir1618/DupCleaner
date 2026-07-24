@@ -193,3 +193,67 @@ TEST_F(ScannerTest, DanglingSymlink) {
     EXPECT_TRUE(result.entries.empty());
     EXPECT_GT(result.skipped_paths.size(), 0);
 }
+
+// 9. Default Excludes Are Skipped
+TEST_F(ScannerTest, DefaultExcludesAreSkipped) {
+#ifdef _WIN32
+    fs::path sys_dir = test_dir / "Windows" / "WinSxS";
+#elif defined(__APPLE__)
+    fs::path sys_dir = test_dir / "System";
+#else
+    fs::path sys_dir = test_dir / "proc";
+#endif
+    createFile(sys_dir / "critical_file.sys", "system data");
+    createFile(test_dir / "normal_file.txt", "normal data");
+
+    DirectoryScanner scanner;
+    dupcleaner::ScannerOptions opts;
+    auto result = scanner.scan(test_dir, opts);
+
+    EXPECT_EQ(result.entries.size(), 1);
+    EXPECT_EQ(result.entries[0].path.filename(), "normal_file.txt");
+    
+    bool logged_exclude = false;
+    for (const auto& sp : result.skipped_paths) {
+        if (sp.find("Excluded by pattern") != std::string::npos && sp.find("system directory") != std::string::npos) {
+            logged_exclude = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(logged_exclude);
+}
+
+// 10. User Excludes Are Respected
+TEST_F(ScannerTest, UserExcludesAreRespected) {
+    createFile(test_dir / "keep_me.txt", "keep");
+    createFile(test_dir / "ignore_me.tmp", "ignore");
+    createFile(test_dir / "build" / "output.o", "obj");
+
+    DirectoryScanner scanner;
+    dupcleaner::ScannerOptions opts;
+    opts.exclude_patterns = {"*.tmp", "*/build*"};
+    auto result = scanner.scan(test_dir, opts);
+
+    EXPECT_EQ(result.entries.size(), 1);
+    EXPECT_EQ(result.entries[0].path.filename(), "keep_me.txt");
+}
+
+// 11. No Default Excludes Works
+TEST_F(ScannerTest, NoDefaultExcludesWorks) {
+#ifdef _WIN32
+    fs::path sys_dir = test_dir / "$Recycle.Bin";
+#elif defined(__APPLE__)
+    fs::path sys_dir = test_dir / "private" / "var" / "db";
+#else
+    fs::path sys_dir = test_dir / "dev";
+#endif
+    createFile(sys_dir / "hidden.dat", "hidden");
+
+    DirectoryScanner scanner;
+    dupcleaner::ScannerOptions opts;
+    opts.no_default_excludes = true;
+    auto result = scanner.scan(test_dir, opts);
+
+    EXPECT_EQ(result.entries.size(), 1);
+    EXPECT_EQ(result.entries[0].path.filename(), "hidden.dat");
+}

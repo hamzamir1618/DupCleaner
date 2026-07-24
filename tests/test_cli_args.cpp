@@ -60,3 +60,15 @@ TEST(CliArgsTest, VerboseFlagRecognized) {
     EXPECT_TRUE(opts.has_scan_command);
     EXPECT_TRUE(opts.verbose);
 }
+
+TEST(CliArgsTest, HashThreadsParsedCorrectly) {
+    CLI::App app;
+    CliOptions opts;
+    setup_cli(app, opts);
+    
+    const char* argv[] = {"dupcleaner", "scan", "my_path", "--hash-threads", "8"};
+    app.parse(sizeof(argv)/sizeof(argv[0]), argv);
+    
+    EXPECT_TRUE(opts.has_scan_command);
+    EXPECT_EQ(opts.hash_threads, 8);
+}

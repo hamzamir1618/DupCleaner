@@ -117,6 +117,18 @@ dupcleaner_cli scan [OPTIONS] path
 - `--verbose` : Print skipped paths and detailed stats.
 - `--include-near-duplicates` : Also scan for near-duplicate images using perceptual hashing.
 - `--similarity-threshold INT` : Hamming distance threshold for near-duplicates (default: 10).
+- `--hash-threads INT` : Number of threads to use for hashing (default: min(hardware_concurrency, 4)).
+- `--exclude PATTERN` : Exclude paths matching glob pattern (can be specified multiple times).
+- `--no-default-excludes` : Disable built-in system directory exclusions.
+
+> [!WARNING]
+> By default, `dupcleaner` avoids traversing critical OS directories (e.g. `Windows\WinSxS`, `/System`, `/proc`). Modifying these files can severely break your OS. Using `--no-default-excludes` on a root drive scan is highly discouraged unless you fully understand the risks.
+
+**Performance Note on `--hash-threads`:**
+The fingerprinting phase is typically IO-bound (limited by disk read speeds) rather than CPU-bound. 
+- On fast SSDs/NVMe drives, you may see better performance by increasing this value (e.g., `--hash-threads 8` or `--hash-threads 16`).
+- On traditional spinning hard drives (HDDs), high concurrency can cause disk thrashing and degrade performance. A lower value (e.g., `--hash-threads 1` or `--hash-threads 2`) is recommended to ensure sequential reads.
+The default value is conservatively set to `min(hardware_concurrency, 4)` as a safe starting point.
 
 **Example Output:**
 ```bash

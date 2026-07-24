@@ -80,39 +80,76 @@ bool DuplicateFinder::filesAreIdentical(const std::filesystem::path& a, const st
     return true;
 }
 
-std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries) {
-    std::vector<std::vector<FileEntry>> results;
-    
-    // 1. Group by size (uses std::map to ensure deterministic ordering of tasks)
-    auto size_buckets = groupBySize(entries);
-    filterUniqueSizes(size_buckets);
-
+std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>> 
+DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<FileEntry>>& size_buckets, const PhaseProgressTracker& progress) {
     auto& pool = getGlobalThreadPool();
-    std::vector<std::future<std::vector<std::vector<FileEntry>>>> futures;
+    
+    struct HashResult {
+        uintmax_t size;
+        std::unordered_map<uint64_t, std::vector<FileEntry>> hash_buckets;
+    };
+    std::vector<std::future<HashResult>> futures;
     futures.reserve(size_buckets.size());
 
-    // 2. Iterate through size buckets and enqueue tasks
+    size_t total_to_hash = 0;
+    for (const auto& [size, group] : size_buckets) {
+        total_to_hash += group.size();
+    }
+    if (progress.total_items) progress.total_items->store(total_to_hash, std::memory_order_relaxed);
+    if (progress.current_items) progress.current_items->store(0, std::memory_order_relaxed);
+    if (progress.current_bytes) progress.current_bytes->store(0, std::memory_order_relaxed);
+
     for (const auto& [size, size_group] : size_buckets) {
-        futures.push_back(pool.enqueue([size_group]() {
-            std::vector<std::vector<FileEntry>> local_results;
-            
-            // 3. Sub-group by fingerprint
-            std::unordered_map<uint64_t, std::vector<FileEntry>> hash_buckets;
+        futures.push_back(pool.enqueue([size, size_group, &progress]() {
+            HashResult res;
+            res.size = size;
             for (const auto& entry : size_group) {
                 try {
                     uint64_t hash = FileHasher::fingerprint(entry.path);
-                    hash_buckets[hash].push_back(entry);
+                    res.hash_buckets[hash].push_back(entry);
                 } catch (const DupCleanerIOException&) {
-                    continue; 
+                    // skip
                 }
+                if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
+                if (progress.current_bytes) progress.current_bytes->fetch_add(entry.size, std::memory_order_relaxed);
             }
-            
-            // 4. Verify identical bytes
-            for (const auto& [hash, hash_group] : hash_buckets) {
+            return res;
+        }));
+    }
+
+    std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>> result;
+    for (auto& f : futures) {
+        auto res = f.get();
+        result[res.size] = std::move(res.hash_buckets);
+    }
+    return result;
+}
+
+std::vector<std::vector<FileEntry>> 
+DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>>& hash_buckets, const PhaseProgressTracker& progress) {
+    auto& pool = getGlobalThreadPool();
+    std::vector<std::future<std::vector<std::vector<FileEntry>>>> futures;
+    
+    size_t total_to_verify = 0;
+    for (const auto& [size, hb] : hash_buckets) {
+        for (const auto& [hash, group] : hb) {
+            if (group.size() > 1) {
+                total_to_verify += group.size();
+            }
+        }
+    }
+    
+    if (progress.total_items) progress.total_items->store(total_to_verify, std::memory_order_relaxed);
+    if (progress.current_items) progress.current_items->store(0, std::memory_order_relaxed);
+    if (progress.current_bytes) progress.current_bytes->store(0, std::memory_order_relaxed);
+
+    for (const auto& [size, hb] : hash_buckets) {
+        futures.push_back(pool.enqueue([hb, &progress]() {
+            std::vector<std::vector<FileEntry>> local_results;
+            for (const auto& [hash, hash_group] : hb) {
                 if (hash_group.size() <= 1) continue;
 
                 std::vector<std::vector<FileEntry>> confirmed_groups;
-
                 for (const auto& entry : hash_group) {
                     bool added = false;
                     for (auto& confirmed_group : confirmed_groups) {
@@ -122,18 +159,17 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
                             break;
                         }
                     }
-                    
                     if (!added) {
                         confirmed_groups.push_back({entry});
                     }
+                    if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
+                    if (progress.current_bytes) progress.current_bytes->fetch_add(entry.size, std::memory_order_relaxed);
                 }
 
-                // 5. Output confirmed groups
                 for (auto& confirmed_group : confirmed_groups) {
                     if (confirmed_group.size() > 1) {
-                        // Sort files within the group to ensure stable order
                         std::sort(confirmed_group.begin(), confirmed_group.end(), [](const FileEntry& a, const FileEntry& b) {
-                            return a.path.string() < b.path.string();
+                            return a.path.u8string() < b.path.u8string();
                         });
                         local_results.push_back(std::move(confirmed_group));
                     }
@@ -143,7 +179,7 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
         }));
     }
 
-    // Collect all results
+    std::vector<std::vector<FileEntry>> results;
     for (auto& f : futures) {
         auto bucket_results = f.get();
         for (auto& group : bucket_results) {
@@ -151,16 +187,24 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
         }
     }
 
-    // Sort final results deterministically
     std::sort(results.begin(), results.end(), [](const std::vector<FileEntry>& a, const std::vector<FileEntry>& b) {
         if (a.empty() || b.empty()) return false;
-        return a[0].path.string() < b[0].path.string();
+        return a[0].path.u8string() < b[0].path.u8string();
     });
 
     return results;
 }
 
-DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold) {
+std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries, const PhaseProgressTracker& progress) {
+    auto size_buckets = groupBySize(entries);
+    filterUniqueSizes(size_buckets);
+    
+    // In the convenience method, we don't have separate progress trackers for each phase, so we just run them.
+    auto hash_buckets = fingerprintCandidates(size_buckets);
+    return verifyExactDuplicates(hash_buckets);
+}
+
+DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold, const PhaseProgressTracker& progress) {
     NearDuplicateResult result;
     std::vector<std::pair<FileEntry, uint64_t>> image_hashes;
     
@@ -175,7 +219,7 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
     futures.reserve(entries.size());
 
     for (const auto& entry : entries) {
-        auto ext = entry.path.extension().string();
+        auto ext = entry.path.extension().u8string();
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
 
         if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp") {
@@ -190,8 +234,12 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
         }
     }
     
+    if (progress.total_items) progress.total_items->store(futures.size(), std::memory_order_relaxed);
+    if (progress.current_items) progress.current_items->store(0, std::memory_order_relaxed);
+
     for (size_t i = 0; i < futures.size(); ++i) {
         auto res = futures[i].get();
+        if (progress.current_items) progress.current_items->fetch_add(1, std::memory_order_relaxed);
         if (res.success) {
             image_hashes.push_back({res.entry, res.hash});
         } else {
@@ -238,7 +286,7 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
         if (group.size() > 1) {
             // Sort files within the group to ensure stable order
             std::sort(group.begin(), group.end(), [](const auto& a, const auto& b) {
-                return a.first.path.string() < b.first.path.string();
+                return a.first.path.u8string() < b.first.path.u8string();
             });
             
             NearDuplicateGroup g;
@@ -250,7 +298,7 @@ DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(co
     // Sort final results deterministically
     std::sort(result.groups.begin(), result.groups.end(), [](const NearDuplicateGroup& a, const NearDuplicateGroup& b) {
         if (a.members.empty() || b.members.empty()) return false;
-        return a.members[0].first.path.string() < b.members[0].first.path.string();
+        return a.members[0].first.path.u8string() < b.members[0].first.path.u8string();
     });
 
     return result;

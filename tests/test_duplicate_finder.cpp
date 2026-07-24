@@ -282,6 +282,60 @@ TEST_F(DuplicateFinderIOTest, FileDeletedBeforeHashingIsGracefullyIgnored) {
     EXPECT_EQ(results[0].size(), 2);
 }
 
+TEST_F(DuplicateFinderIOTest, VerifyLinearComplexityForLargeIdenticalCluster) {
+    // Construct a large cluster of 500 files of genuinely identical content
+    const int NUM_FILES = 500;
+    std::vector<FileEntry> entries;
+    
+    std::string content = "Common identical content for O(n) test.";
+    for (int i = 0; i < NUM_FILES; ++i) {
+        fs::path p = test_dir / ("cluster_file_" + std::to_string(i) + ".dat");
+        createFile(p, content);
+        
+        FileEntry e;
+        e.path = p;
+        e.size = content.size();
+        entries.push_back(e);
+    }
+    
+    auto size_buckets = DuplicateFinder::groupBySize(entries);
+    auto hash_buckets = DuplicateFinder::fingerprintCandidates(size_buckets);
+    
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto results = DuplicateFinder::verifyExactDuplicates(hash_buckets);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+    
+    // Assert correctness
+    ASSERT_EQ(results.size(), 1);
+    EXPECT_EQ(results[0].size(), NUM_FILES);
+    
+    // Assert performance: O(n) means 500 comparisons, which should be well under 1000ms.
+    // O(n^2) would be ~125,000 file comparisons and likely take multiple seconds.
+    EXPECT_LT(duration_ms, 2000) << "Verification took too long, likely O(n^2) instead of O(n)";
+}
+
+TEST_F(DuplicateFinderIOTest, HashCollisionResolvedByVerification) {
+    // Construct two files that differ in bytes
+    fs::path p1 = test_dir / "coll1.dat";
+    fs::path p2 = test_dir / "coll2.dat";
+    createFile(p1, "AAA");
+    createFile(p2, "BBB");
+    
+    FileEntry e1; e1.path = p1; e1.size = 3;
+    FileEntry e2; e2.path = p2; e2.size = 3;
+    
+    // Mock a hash collision by putting both under the same hash key
+    std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>> hash_buckets;
+    hash_buckets[3][123456789] = {e1, e2}; // Artificial collision!
+    
+    auto results = DuplicateFinder::verifyExactDuplicates(hash_buckets);
+    
+    // Because they differ in content, they should not form a valid duplicate group
+    EXPECT_TRUE(results.empty());
+}
+
 // --- Near-Duplicate Clustering Tests ---
 #include "stb_image_write.h"
 

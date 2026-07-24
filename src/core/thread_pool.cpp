@@ -44,9 +44,19 @@ ThreadPool::~ThreadPool() {
     }
 }
 
+static size_t g_pool_size = std::max<size_t>(1, std::min<size_t>(std::thread::hardware_concurrency(), 4));
+static std::unique_ptr<ThreadPool> g_pool;
+static std::once_flag g_pool_once;
+
+void initGlobalThreadPool(size_t threads) {
+    if (threads > 0) g_pool_size = threads;
+}
+
 ThreadPool& getGlobalThreadPool() {
-    static ThreadPool pool(std::thread::hardware_concurrency());
-    return pool;
+    std::call_once(g_pool_once, []() {
+        g_pool = std::make_unique<ThreadPool>(g_pool_size);
+    });
+    return *g_pool;
 }
 
 } // namespace dupcleaner
