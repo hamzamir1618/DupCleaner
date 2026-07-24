@@ -39,10 +39,13 @@ ctest --test-dir build -C Release -L performance -V
 ```
 *Note: A baseline run on a modern NVMe SSD (100,000 files, up to 64KB each) should yield a scan throughput upwards of 10,000 files/sec.*
 
-### GUI Logic and Render Loop
+### GUI Threading Model (ScanController)
 The GUI (`dupcleaner_gui`) is intentionally thin, focusing purely on presentation and delegating work to the Core library.
 
-- **Background Scanning**: The GUI invokes `DirectoryScanner` and `DuplicateFinder` on a separate `std::thread`. A `std::atomic<bool>` flag and a `std::mutex` safely communicate completion and transfer results back to the ImGui render loop, ensuring the UI remains perfectly responsive during long I/O operations.
+- **Scan Lifecycle and Ownership**: The GUI relies on a single `ScanController` instance (owned by `DupCleanerApp`) to manage the background scanning thread. The raw `std::thread` is never exposed to the UI layer, preventing it from being destructed while running (which would cause a silent `std::terminate`).
+- **Synchronization**: `ScanController` safely communicates state (Idle, Scanning, Done, Failed) via `std::atomic` enums. It encapsulates a `std::mutex` to protect results and error messages. The main ImGui render loop queries these thread-safe accessors every frame to update the UI without blocking.
+- **Cancellation**: `ScanController` supports early cancellation by passing an `std::atomic<bool>*` to `DirectoryScanner`, which checks it periodically during filesystem traversal and aborts cleanly.
+- **Exception Boundary**: The background scan lambda wraps all Core invocations in a `try/catch` block. Any exceptions are trapped, serialized to a string, and exposed via the `Failed` state, guaranteeing the thread never leaks exceptions to the OS.
 
 - **Thumbnail Generation and Caching**: To help users visually distinguish exact and near-duplicates, the GUI displays thumbnails. 
   - Thumbnails are loaded lazily on the main render thread via `ImageLoader`. 

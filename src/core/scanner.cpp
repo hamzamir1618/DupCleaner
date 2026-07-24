@@ -5,7 +5,7 @@ namespace fs = std::filesystem;
 
 namespace dupcleaner {
 
-ScanResult DirectoryScanner::scan(const fs::path& root, const ScannerOptions& scan_opts) {
+ScanResult DirectoryScanner::scan(const fs::path& root, const ScannerOptions& scan_opts, std::atomic<bool>* cancelFlag, const ProgressTracker& progress) {
     ScanResult result;
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -24,6 +24,11 @@ ScanResult DirectoryScanner::scan(const fs::path& root, const ScannerOptions& sc
     result.stats.directories_visited++;
 
     for (auto it = fs::recursive_directory_iterator(root, options, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (cancelFlag && cancelFlag->load(std::memory_order_relaxed)) {
+            result.skipped_paths.push_back("Scan cancelled by user.");
+            break;
+        }
+
         if (ec) {
             result.skipped_paths.push_back("Iteration error: " + ec.message());
             result.stats.items_skipped++;
@@ -91,6 +96,13 @@ ScanResult DirectoryScanner::scan(const fs::path& root, const ScannerOptions& sc
         result.entries.push_back(std::move(file_entry));
         result.stats.files_visited++;
         result.stats.bytes_visited += file_size;
+        
+        if (progress.files_visited) {
+            progress.files_visited->store(result.stats.files_visited, std::memory_order_relaxed);
+        }
+        if (progress.bytes_visited) {
+            progress.bytes_visited->store(result.stats.bytes_visited, std::memory_order_relaxed);
+        }
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();

@@ -4,6 +4,7 @@
 #include <string>
 #include <filesystem>
 #include <chrono>
+#include <atomic>
 #include "dupcleaner/file_entry.h"
 
 namespace dupcleaner {
@@ -28,7 +29,12 @@ struct ScannerOptions {
 
 class DirectoryScanner {
 public:
-    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = {});
+    struct ProgressTracker {
+        std::atomic<uintmax_t>* files_visited{nullptr};
+        std::atomic<uintmax_t>* bytes_visited{nullptr};
+    };
+
+    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = {}, std::atomic<bool>* cancelFlag = nullptr, const ProgressTracker& progress = {});
 };
 
 } // namespace dupcleaner

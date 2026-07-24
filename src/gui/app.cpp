@@ -5,6 +5,11 @@
 #include "perceptual_hash.h"
 #include "thumbnail_logic.h"
 #include "selection_logic.h"
+#include "deleter.h"
+#include "scan_controller.h"
+#include <set>
+#include <optional>
+#include "tinyfiledialogs.h"
 #include "imgui.h"
 #include <iostream>
 #include <algorithm>
@@ -15,9 +20,6 @@ DupCleanerApp::DupCleanerApp() {
 }
 
 DupCleanerApp::~DupCleanerApp() {
-    if (scan_thread.joinable()) {
-        scan_thread.join();
-    }
 }
 
 void DupCleanerApp::startScan(const std::string& path) {
@@ -28,53 +30,67 @@ void DupCleanerApp::startScan(const std::string& path) {
     
     deleter = std::make_unique<SafeDeleter>(path);
     
-    is_scanning = true;
-    scan_finished_flag = false;
-    
-    scan_thread = std::thread([this, path]() {
-        DirectoryScanner scanner;
-        ScannerOptions scan_opts;
-        
-        auto result = scanner.scan(path, scan_opts);
-        auto exact = DuplicateFinder::findExactDuplicates(result.entries);
-        auto near_dup = DuplicateFinder::findNearDuplicateImages(result.entries, 10);
-        
-        sortGroupsByWastedSpaceDescending(exact);
-        
-        std::lock_guard<std::mutex> lock(results_mutex);
-        this->exact_duplicates = std::move(exact);
-        this->near_duplicates = std::move(near_dup);
-        this->scan_finished_flag = true;
-    });
+    scan_controller.startScan(path);
 }
 
 void DupCleanerApp::render() {
-    if (is_scanning && scan_finished_flag) {
-        if (scan_thread.joinable()) {
-            scan_thread.join();
-        }
+    auto state = scan_controller.getState();
+    
+    // Check if we just transitioned to Done
+    if (state == ScanState::Done && exact_duplicates.empty() && near_duplicates.groups.empty() && scan_controller.getExactWastedSpace() > 0) {
+        // Fetch results once (since exact_wasted_space is > 0 or we just assume they are available)
+        exact_duplicates = scan_controller.getExactDuplicates();
+        near_duplicates = scan_controller.getNearDuplicates();
+        exact_wasted_space = scan_controller.getExactWastedSpace();
         
-        std::lock_guard<std::mutex> lock(results_mutex);
-        for (const auto& group : exact_duplicates) {
-            exact_wasted_space += calculateWastedSpace(group);
-        }
-        
-        // Populate initial selections based on KeepOldest strategy
         selected_for_deletion = calculateInitialSelections(exact_duplicates, near_duplicates, KeepStrategy::KeepOldest);
-        
-        is_scanning = false;
-        scan_finished_flag = false;
     }
+    
+    // Handle empty results specifically
+    if (state == ScanState::Done && exact_duplicates.empty() && near_duplicates.groups.empty()) {
+        // It could just be an empty scan, fetch to make sure.
+        exact_duplicates = scan_controller.getExactDuplicates();
+        near_duplicates = scan_controller.getNearDuplicates();
+        exact_wasted_space = scan_controller.getExactWastedSpace();
+    }
+    
+    auto openFolderDialog = []() -> std::optional<std::string> {
+        const char* folder = tinyfd_selectFolderDialog("Select Target Directory", "");
+        if (folder != nullptr) {
+            return std::string(folder);
+        }
+        return std::nullopt;
+    };
 
-    ImGui::Begin("Duplicate Photo Cleaner");
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
 
-    ImGui::InputText("Directory", target_dir, sizeof(target_dir));
+    ImGui::Begin("Duplicate Photo Cleaner", nullptr, window_flags);
+
+    // Top Bar
+    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 200.0f);
+    ImGui::InputText("##Directory", target_dir, sizeof(target_dir));
+    ImGui::PopItemWidth();
+    
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...")) {
+        if (auto selected = openFolderDialog()) {
+#ifdef _MSC_VER
+            strncpy_s(target_dir, sizeof(target_dir), selected->c_str(), _TRUNCATE);
+#else
+            strncpy(target_dir, selected->c_str(), sizeof(target_dir) - 1);
+            target_dir[sizeof(target_dir) - 1] = '\0';
+#endif
+        }
+    }
     ImGui::SameLine();
     
-    if (is_scanning) {
-        ImGui::BeginDisabled();
-        ImGui::Button("Scanning...");
-        ImGui::EndDisabled();
+    if (state == ScanState::Scanning) {
+        if (ImGui::Button("Cancel Scan")) {
+            scan_controller.requestCancel();
+        }
     } else {
         if (ImGui::Button("Scan")) {
             std::string path(target_dir);
@@ -83,15 +99,49 @@ void DupCleanerApp::render() {
             }
         }
     }
+    
+    ImGui::Spacing();
+    
+    // Status Bar
+    if (state == ScanState::Scanning) {
+        ImGui::Text("Scanning... (%llu files found, %s)", (unsigned long long)scan_controller.getFilesScanned(), formatBytes(scan_controller.getBytesScanned()).c_str());
+    } else if (state == ScanState::Failed) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+        ImGui::TextWrapped("Scan Failed: %s", scan_controller.getErrorMessage().c_str());
+        ImGui::PopStyleColor();
+    } else if (state == ScanState::Done) {
+        ImGui::Text("Scan complete: %zu exact, %zu near duplicate groups found. %s reclaimable.", exact_duplicates.size(), near_duplicates.groups.size(), formatBytes(exact_wasted_space).c_str());
+    } else {
+        ImGui::Text("Ready. Select a directory and click Scan.");
+    }
+    
+    ImGui::Separator();
+    
+    // Main Content Area (Leave room for Action Bar)
+    float bottom_bar_height = ImGui::GetFrameHeightWithSpacing() * 2.5f;
+    ImGui::BeginChild("MainContent", ImVec2(0, -bottom_bar_height), true);
 
-    if (is_scanning) {
-        ImGui::Text("Scanning in progress... Please wait.");
-    } else if (!exact_duplicates.empty() || !near_duplicates.groups.empty()) {
-        ImGui::Separator();
-        
+    if (state == ScanState::Done && (!exact_duplicates.empty() || !near_duplicates.groups.empty())) {
+        if (ImGui::BeginTabBar("ResultsTabs")) {
+            if (ImGui::BeginTabItem("Exact Duplicates")) {
+                renderExactDuplicates();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Near Duplicates")) {
+                renderNearDuplicates();
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+    }
+    ImGui::EndChild();
+    
+    ImGui::Separator();
+    
+    // Bottom Action Bar
+    if (state == ScanState::Done && (!exact_duplicates.empty() || !near_duplicates.groups.empty())) {
         uintmax_t selected_wasted = calculateSelectedWastedSpace(selected_for_deletion, exact_duplicates, near_duplicates);
-        ImGui::Text("Total Wasted Space: %s", formatBytes(exact_wasted_space).c_str());
-        ImGui::Text("Selected to Delete: %zu files (%s)", selected_for_deletion.size(), formatBytes(selected_wasted).c_str());
+        ImGui::Text("%zu files selected, %s will be reclaimed", selected_for_deletion.size(), formatBytes(selected_wasted).c_str());
         
         if (ImGui::Button("Clean Selected") && !selected_for_deletion.empty()) {
             ImGui::OpenPopup("Confirm Deletion");
@@ -152,88 +202,132 @@ void DupCleanerApp::render() {
     ImGui::End();
 }
 
-void DupCleanerApp::renderExactDuplicates() {
-    std::lock_guard<std::mutex> lock(results_mutex);
-    ImGui::BeginChild("ExactDuplicatesList", ImVec2(0, 0), true);
+static void HandleTableSort(std::vector<FileEntry>& entries) {
+    if (ImGuiTableSortSpecs* sorts_specs = ImGui::TableGetSortSpecs()) {
+        if (sorts_specs->SpecsDirty && sorts_specs->SpecsCount > 0) {
+            const ImGuiTableColumnSortSpecs* sort_spec = &sorts_specs->Specs[0];
+            bool descending = (sort_spec->SortDirection == ImGuiSortDirection_Descending);
+            
+            TableColumn col = TableColumn::Path;
+            if (sort_spec->ColumnIndex == 2) col = TableColumn::Size;
+            // Column 3 is Last Modified (could implement it if needed, currently string format)
 
+            SortFileEntries(entries, col, descending);
+            sorts_specs->SpecsDirty = false;
+        }
+    }
+}
+
+void DupCleanerApp::renderExactDuplicates() {
     for (size_t i = 0; i < exact_duplicates.size(); ++i) {
-        const auto& group = exact_duplicates[i];
+        auto& group = exact_duplicates[i];
         uintmax_t wasted = calculateWastedSpace(group);
         
         if (ImGui::CollapsingHeader(("Group " + std::to_string(i + 1) + " - Wasted: " + formatBytes(wasted)).c_str())) {
-            bool is_image = isImageGroup(group);
-            auto thumbnail_paths = getPathsForThumbnails(group, false);
+            
+            static ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Sortable | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH;
+            
+            if (ImGui::BeginTable(("ExactTable" + std::to_string(i)).c_str(), 4, flags)) {
+                ImGui::TableSetupColumn("Keep", ImGuiTableColumnFlags_NoSort | ImGuiTableColumnFlags_WidthFixed, 40.0f);
+                ImGui::TableSetupColumn("File Path", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                ImGui::TableSetupColumn("Thumbnail", ImGuiTableColumnFlags_NoSort | ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                ImGui::TableHeadersRow();
 
-            for (const auto& file : group) {
-                std::string path_str = file.path.string();
-                bool is_selected = selected_for_deletion.count(path_str) > 0;
-                if (ImGui::Checkbox(("##" + path_str).c_str(), &is_selected)) {
-                    if (is_selected) selected_for_deletion.insert(path_str);
-                    else selected_for_deletion.erase(path_str);
-                }
-                ImGui::SameLine();
-                ImGui::Text("%s (%s)", path_str.c_str(), formatBytes(file.size).c_str());
-                
-                if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), file.path) != thumbnail_paths.end()) {
-                    GLuint tex = thumbnail_cache.getTexture(file.path);
-                    if (tex != 0) {
-                        ImGui::Indent();
-                        ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 100));
-                        ImGui::Unindent();
+                HandleTableSort(group);
+
+                bool is_image = isImageGroup(group);
+                auto thumbnail_paths = getPathsForThumbnails(group, false);
+
+                for (const auto& file : group) {
+                    ImGui::TableNextRow();
+                    
+                    std::string path_str = file.path.string();
+                    bool is_selected = selected_for_deletion.count(path_str) > 0;
+                    
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::Checkbox(("##" + path_str).c_str(), &is_selected)) {
+                        if (is_selected) selected_for_deletion.insert(path_str);
+                        else selected_for_deletion.erase(path_str);
+                    }
+                    
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextWrapped("%s", path_str.c_str());
+                    
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::Text("%s", formatBytes(file.size).c_str());
+                    
+                    ImGui::TableSetColumnIndex(3);
+                    if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), file.path) != thumbnail_paths.end()) {
+                        GLuint tex = thumbnail_cache.getTexture(file.path);
+                        if (tex != 0) {
+                            ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 100));
+                        }
                     }
                 }
+                ImGui::EndTable();
             }
         }
     }
-    
-    ImGui::EndChild();
 }
 
 void DupCleanerApp::renderNearDuplicates() {
-    std::lock_guard<std::mutex> lock(results_mutex);
-    ImGui::BeginChild("NearDuplicatesList", ImVec2(0, 0), true);
-
     for (size_t i = 0; i < near_duplicates.groups.size(); ++i) {
-        const auto& group = near_duplicates.groups[i];
+        auto& group = near_duplicates.groups[i];
         if (ImGui::CollapsingHeader(("Near Duplicate Group " + std::to_string(i + 1)).c_str())) {
-            std::vector<FileEntry> entries;
-            for (const auto& m : group.members) entries.push_back(m.first);
             
-            bool is_image = isImageGroup(entries);
-            auto thumbnail_paths = getPathsForThumbnails(entries, true);
+            static ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH;
+            
+            if (ImGui::BeginTable(("NearTable" + std::to_string(i)).c_str(), 4, flags)) {
+                ImGui::TableSetupColumn("Keep", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+                ImGui::TableSetupColumn("File Path", ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("Similarity", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                ImGui::TableSetupColumn("Thumbnail", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                ImGui::TableHeadersRow();
 
-            for (size_t j = 0; j < group.members.size(); ++j) {
-                const auto& member = group.members[j];
-                std::string path_str = member.first.path.string();
+                std::vector<FileEntry> entries;
+                for (const auto& m : group.members) entries.push_back(m.first);
                 
-                bool is_selected = selected_for_deletion.count(path_str) > 0;
-                if (ImGui::Checkbox(("##" + path_str).c_str(), &is_selected)) {
-                    if (is_selected) selected_for_deletion.insert(path_str);
-                    else selected_for_deletion.erase(path_str);
-                }
-                ImGui::SameLine();
+                bool is_image = isImageGroup(entries);
+                auto thumbnail_paths = getPathsForThumbnails(entries, true);
 
-                if (j == 0) {
-                    ImGui::Text("%s (Reference)", path_str.c_str());
-                } else {
-                    int dist = PerceptualHash::hammingDistance(group.members[0].second, member.second);
-                    int sim = 100 - (dist * 100 / 64);
-                    ImGui::Text("%s (Similarity: %d%%)", path_str.c_str(), sim);
-                }
-
-                if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), member.first.path) != thumbnail_paths.end()) {
-                    GLuint tex = thumbnail_cache.getTexture(member.first.path);
-                    if (tex != 0) {
-                        ImGui::Indent();
-                        ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 100));
-                        ImGui::Unindent();
+                for (size_t j = 0; j < group.members.size(); ++j) {
+                    ImGui::TableNextRow();
+                    const auto& member = group.members[j];
+                    std::string path_str = member.first.path.string();
+                    
+                    bool is_selected = selected_for_deletion.count(path_str) > 0;
+                    
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::Checkbox(("##" + path_str).c_str(), &is_selected)) {
+                        if (is_selected) selected_for_deletion.insert(path_str);
+                        else selected_for_deletion.erase(path_str);
+                    }
+                    
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextWrapped("%s", path_str.c_str());
+                    
+                    ImGui::TableSetColumnIndex(2);
+                    if (j == 0) {
+                        ImGui::Text("Reference");
+                    } else {
+                        int dist = PerceptualHash::hammingDistance(group.members[0].second, member.second);
+                        int sim = 100 - (dist * 100 / 64);
+                        ImGui::Text("%d%%", sim);
+                    }
+                    
+                    ImGui::TableSetColumnIndex(3);
+                    if (is_image && std::find(thumbnail_paths.begin(), thumbnail_paths.end(), member.first.path) != thumbnail_paths.end()) {
+                        GLuint tex = thumbnail_cache.getTexture(member.first.path);
+                        if (tex != 0) {
+                            ImGui::Image((void*)(intptr_t)tex, ImVec2(100, 100));
+                        }
                     }
                 }
+                ImGui::EndTable();
             }
         }
     }
-    
-    ImGui::EndChild();
 }
 
 } // namespace dupcleaner::gui

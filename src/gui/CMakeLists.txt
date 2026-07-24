@@ -27,6 +27,10 @@ add_executable(dupcleaner_gui
     thumbnail_logic.cpp
     thumbnail_cache.cpp
     selection_logic.cpp
+    scan_controller.cpp
+    theme.cpp
+    table_logic.cpp
+    ${CMAKE_SOURCE_DIR}/third_party/tinyfiledialogs.c
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
@@ -46,7 +50,7 @@ target_include_directories(dupcleaner_gui PRIVATE
 target_link_libraries(dupcleaner_gui PRIVATE dupcleaner_core glfw)
 
 if (WIN32)
-    target_link_libraries(dupcleaner_gui PRIVATE opengl32)
+    target_link_libraries(dupcleaner_gui PRIVATE opengl32 comdlg32 ole32)
 elseif (APPLE)
     target_link_libraries(dupcleaner_gui PRIVATE "-framework OpenGL" "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
 else()

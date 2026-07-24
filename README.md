@@ -91,11 +91,11 @@ dupcleaner_gui
 
 ![DupCleaner GUI](docs/screenshots/gui_main.png)
 
-1. **Target Directory:** Type or paste the folder path you wish to scan at the top of the window.
-2. **Scan:** Click the "Scan" button. The engine runs on a background thread, preventing UI freezes. 
-3. **Review:** The interface will populate with scrollable duplicate groups. For images, a visual thumbnail is automatically generated. The space you are about to save is displayed prominently.
-4. **Cleanup:** Check or uncheck files to keep/discard. Click **"Clean Selected"** to move the selected files to the trash.
-5. **Undo:** Use the **"Undo Last Cleanup"** button to revert your last bulk deletion.
+1. **Target Directory:** Launch `dupcleaner_gui`. At the top, click **Browse...** to select a target directory or type it manually.
+2. **Scan:** Click **Scan**. The interface will display a live progress status bar showing the number of files and bytes scanned in real-time.
+3. **Review:** Once completed, results appear in a cohesive, sortable data table format under "Exact Duplicates" and "Near Duplicates" tabs. You can sort by File Path or Size by clicking the column headers. Inline thumbnails are displayed for image files. The total space you are about to save is displayed dynamically at the bottom.
+4. **Cleanup:** Check or uncheck the "Keep" column to retain or discard files. Click **Clean Selected** on the bottom action bar to move the selected files to the trash.
+5. **Undo:** Use the **Undo Last Cleanup** button on the bottom action bar to revert your last bulk deletion.
 
 ---
 

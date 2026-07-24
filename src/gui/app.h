@@ -2,13 +2,13 @@
 
 #include <string>
 #include <vector>
-#include <thread>
-#include <mutex>
 #include <atomic>
 #include "dupcleaner/file_entry.h"
 #include "duplicate_finder.h"
 #include "thumbnail_cache.h"
 #include "deleter.h"
+#include "scan_controller.h"
+#include "table_logic.h"
 #include <set>
 
 namespace dupcleaner::gui {
@@ -27,14 +27,10 @@ private:
 
     // UI State
     char target_dir[2048] = "";
-    
-    // Threading and State
-    std::thread scan_thread;
-    std::atomic<bool> is_scanning{false};
-    std::atomic<bool> scan_finished_flag{false};
-    std::mutex results_mutex;
 
-    // Results
+    ScanController scan_controller;
+
+    // Results from ScanController (fetched when Done)
     std::vector<std::vector<FileEntry>> exact_duplicates;
     DuplicateFinder::NearDuplicateResult near_duplicates;
     uintmax_t exact_wasted_space = 0;

@@ -84,3 +84,12 @@ Thumbs.db
 
 # CI Error Logs
 *-errors.md
+*error*.md
+
+# ImGui settings
+imgui.ini
+
+# Test directories
+gui_test_images/
+large_test_dir/
+test_runbook_dir/
