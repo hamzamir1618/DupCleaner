@@ -81,7 +81,7 @@ bool DuplicateFinder::filesAreIdentical(const std::filesystem::path& a, const st
 }
 
 std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>> 
-DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<FileEntry>>& size_buckets, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
+DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<FileEntry>>& size_buckets, const PhaseProgressTracker& progress, const ProgressCallback& onProgress) {
     auto& pool = getGlobalThreadPool();
     std::mutex cb_mutex;
     
@@ -135,7 +135,7 @@ DuplicateFinder::fingerprintCandidates(const std::map<uintmax_t, std::vector<Fil
 }
 
 std::vector<std::vector<FileEntry>> 
-DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>>& hash_buckets, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
+DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_map<uint64_t, std::vector<FileEntry>>>& hash_buckets, const PhaseProgressTracker& progress, const ProgressCallback& onProgress) {
     auto& pool = getGlobalThreadPool();
     std::mutex cb_mutex;
     std::vector<std::future<std::vector<std::vector<FileEntry>>>> futures;
@@ -214,7 +214,7 @@ DuplicateFinder::verifyExactDuplicates(const std::map<uintmax_t, std::unordered_
     return results;
 }
 
-std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
+std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const std::vector<FileEntry>& entries, const PhaseProgressTracker& progress, const ProgressCallback& onProgress) {
     if (onProgress) onProgress(PipelinePhase::GroupingBySize, 0, entries.size());
     auto size_buckets = groupBySize(entries);
     if (onProgress) onProgress(PipelinePhase::GroupingBySize, entries.size(), entries.size());
@@ -228,7 +228,7 @@ std::vector<std::vector<FileEntry>> DuplicateFinder::findExactDuplicates(const s
     return results;
 }
 
-DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold, const PhaseProgressTracker& progress, ProgressCallback onProgress) {
+DuplicateFinder::NearDuplicateResult DuplicateFinder::findNearDuplicateImages(const std::vector<FileEntry>& entries, int hammingThreshold, const PhaseProgressTracker& progress, const ProgressCallback& onProgress) {
     NearDuplicateResult result;
     std::vector<std::pair<FileEntry, uint64_t>> image_hashes;
     
