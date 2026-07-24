@@ -34,7 +34,7 @@ public:
         std::atomic<uintmax_t>* bytes_visited{nullptr};
     };
 
-    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = {}, std::atomic<bool>* cancelFlag = nullptr, const ProgressTracker& progress = {});
+    ScanResult scan(const std::filesystem::path& root, const ScannerOptions& opts = ScannerOptions{}, std::atomic<bool>* cancelFlag = nullptr, const ProgressTracker& progress = ProgressTracker{});
 };
 
 } // namespace dupcleaner
