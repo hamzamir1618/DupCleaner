@@ -112,7 +112,7 @@ DeletionResult SafeDeleter::execute(const DeletionPlan& plan, bool moveToTrash) 
         std::filesystem::rename(originalPath, trashFilePath, ec);
         if (!ec) {
             // Success, record in manifest
-            manifest["files"][trashFilename] = originalPath.string(); // Using string() to correctly store unicode paths in JSON
+            manifest["files"][trashFilename] = originalPath.u8string(); // Using u8string() to correctly store unicode paths in JSON
         } else {
             result.failed_files.push_back(originalPath);
         }
@@ -179,7 +179,7 @@ bool SafeDeleter::undoLastDeletion() {
         
         // Handle utf-8 string correctly
         std::string path_str = it.value().get<std::string>();
-        std::filesystem::path originalPath(path_str);
+        std::filesystem::path originalPath = std::filesystem::u8path(path_str);
 
         if (std::filesystem::exists(trashFilePath)) {
             // Ensure original directory exists

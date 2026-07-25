@@ -10,7 +10,13 @@ std::optional<ImageData> ImageLoader::load(const std::filesystem::path& path) {
     
     // Attempt to load the image.
     // If the file is not an image or fails to load, stbi_load returns null.
-    unsigned char* raw_data = stbi_load(path.string().c_str(), &w, &h, &c, 0);
+#ifdef _WIN32
+    FILE* f = _wfopen(path.wstring().c_str(), L"rb");
+    unsigned char* raw_data = f ? stbi_load_from_file(f, &w, &h, &c, 0) : nullptr;
+    if (f) fclose(f);
+#else
+    unsigned char* raw_data = stbi_load(path.u8string().c_str(), &w, &h, &c, 0);
+#endif
 
     if (!raw_data) {
         return std::nullopt;

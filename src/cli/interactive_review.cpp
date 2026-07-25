@@ -18,7 +18,7 @@ GroupDecision resolveGroupInteractively(
 
     out << "Reviewing Group:\n";
     for (size_t i = 0; i < group.size(); ++i) {
-        out << "  [" << (i + 1) << "] " << group[i].path.string() 
+        out << "  [" << (i + 1) << "] " << group[i].path.u8string() 
             << " (" << group[i].size << " bytes)";
         if (i == suggested_keep_index) {
             out << " (*Suggested*)";

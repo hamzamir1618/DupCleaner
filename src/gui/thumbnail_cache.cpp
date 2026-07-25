@@ -60,7 +60,7 @@ void ThumbnailCache::clear() {
 }
 
 GLuint ThumbnailCache::getTexture(const std::filesystem::path& path) {
-    std::string key = path.string();
+    std::string key = path.u8string();
     if (cache.find(key) != cache.end()) {
         return cache[key];
     }

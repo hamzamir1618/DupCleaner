@@ -8,20 +8,20 @@ void SortFileEntries(std::vector<FileEntry>& entries, TableColumn column, bool d
         bool result = false;
         switch (column) {
             case TableColumn::Path:
-                result = a.path.string() < b.path.string();
+                result = a.path.u8string() < b.path.u8string();
                 break;
             case TableColumn::Size:
                 if (a.size != b.size) {
                     result = a.size < b.size;
                 } else {
-                    result = a.path.string() < b.path.string();
+                    result = a.path.u8string() < b.path.u8string();
                 }
                 break;
             case TableColumn::LastModified:
                 if (a.last_modified != b.last_modified) {
                     result = a.last_modified < b.last_modified;
                 } else {
-                    result = a.path.string() < b.path.string();
+                    result = a.path.u8string() < b.path.u8string();
                 }
                 break;
         }

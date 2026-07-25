@@ -7,7 +7,7 @@ namespace dupcleaner::gui {
 bool isImageGroup(const std::vector<FileEntry>& group) {
     if (group.empty()) return false;
     
-    std::string ext = group[0].path.extension().string();
+    std::string ext = group[0].path.extension().u8string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     
     return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp" || ext == ".gif";

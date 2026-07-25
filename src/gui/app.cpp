@@ -30,7 +30,7 @@ void DupCleanerApp::startScan(const std::string& path) {
     exact_wasted_space = 0;
     selected_for_deletion.clear();
     
-    deleter = std::make_unique<SafeDeleter>(path);
+    deleter = std::make_unique<SafeDeleter>(std::filesystem::u8path(path));
     
     ScannerOptions opts;
     opts.min_size = min_size_bytes;
@@ -311,14 +311,14 @@ void DupCleanerApp::render() {
         if (ImGui::Button("Confirm", ImVec2(120, 0))) {
             if (deleter) {
                 DeletionPlan plan;
-                for (const auto& path_str : selected_for_deletion) plan.delete_files.push_back(std::filesystem::path(path_str));
+                for (const auto& path_str : selected_for_deletion) plan.delete_files.push_back(std::filesystem::u8path(path_str));
                 (void)deleter->execute(plan, move_to_trash);
                 
                 // Update visuals for Exact Duplicates
                 for (auto it = exact_duplicates.begin(); it != exact_duplicates.end(); ) {
                     auto& group = *it;
                     group.erase(std::remove_if(group.begin(), group.end(), [&](const FileEntry& f) {
-                        return selected_for_deletion.count(f.path.string()) > 0;
+                        return selected_for_deletion.count(f.path.u8string()) > 0;
                     }), group.end());
                     
                     if (group.size() <= 1) {
@@ -332,7 +332,7 @@ void DupCleanerApp::render() {
                 for (auto it = near_duplicates.groups.begin(); it != near_duplicates.groups.end(); ) {
                     auto& group = *it;
                     group.members.erase(std::remove_if(group.members.begin(), group.members.end(), [&](const auto& pair) {
-                        return selected_for_deletion.count(pair.first.path.string()) > 0;
+                        return selected_for_deletion.count(pair.first.path.u8string()) > 0;
                     }), group.members.end());
                     
                     if (group.members.size() <= 1) {
@@ -391,7 +391,7 @@ void DupCleanerApp::renderExactDuplicates() {
         
         for (size_t j = 0; j < group.size(); ++j) {
             const auto& file = group[j];
-            std::string path_str = file.path.string();
+            std::string path_str = file.path.u8string();
             bool is_selected = selected_for_deletion.count(path_str) > 0;
             
             ImGui::PushID(path_str.c_str());
@@ -412,7 +412,7 @@ void DupCleanerApp::renderExactDuplicates() {
             
             ImGui::PushFont(font_small);
             ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + cell_width);
-            std::string filename = file.path.filename().string();
+            std::string filename = file.path.filename().u8string();
             ImGui::Text("%s", filename.c_str());
             ImGui::PopTextWrapPos();
             if (ImGui::IsItemHovered()) {
@@ -471,7 +471,7 @@ void DupCleanerApp::renderNearDuplicates() {
         
         for (size_t j = 0; j < group.members.size(); ++j) {
             const auto& member = group.members[j];
-            std::string path_str = member.first.path.string();
+            std::string path_str = member.first.path.u8string();
             bool is_selected = selected_for_deletion.count(path_str) > 0;
             
             ImGui::PushID(path_str.c_str());
@@ -504,7 +504,7 @@ void DupCleanerApp::renderNearDuplicates() {
             
             ImGui::PushFont(font_small);
             ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + cell_width);
-            std::string filename = member.first.path.filename().string();
+            std::string filename = member.first.path.filename().u8string();
             ImGui::Text("%s", filename.c_str());
             ImGui::PopTextWrapPos();
             if (ImGui::IsItemHovered()) {

@@ -14,7 +14,7 @@ std::set<std::string> calculateInitialSelections(
     if (!exact.empty()) {
         auto plan = temp_deleter.planDeletion(exact, strategy);
         for (const auto& p : plan.delete_files) {
-            selected.insert(p.string());
+            selected.insert(p.u8string());
         }
     }
 
@@ -30,7 +30,7 @@ std::set<std::string> calculateInitialSelections(
         }
         auto plan = temp_deleter.planDeletion(near_groups, strategy);
         for (const auto& p : plan.delete_files) {
-            selected.insert(p.string());
+            selected.insert(p.u8string());
         }
     }
 
@@ -46,7 +46,7 @@ uintmax_t calculateSelectedWastedSpace(
 
     for (const auto& group : exact) {
         for (const auto& file : group) {
-            if (selected_paths.count(file.path.string())) {
+            if (selected_paths.count(file.path.u8string())) {
                 total += file.size;
             }
         }
@@ -54,7 +54,7 @@ uintmax_t calculateSelectedWastedSpace(
 
     for (const auto& group : near_dup.groups) {
         for (const auto& member : group.members) {
-            if (selected_paths.count(member.first.path.string())) {
+            if (selected_paths.count(member.first.path.u8string())) {
                 total += member.first.size;
             }
         }
